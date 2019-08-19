@@ -12,9 +12,9 @@ import (
 	"os/exec"
 
 	"github.com/imdario/mergo"
-	"sigs.k8s.io/kustomize/v3/pkg/ifc"
-	"sigs.k8s.io/kustomize/v3/pkg/resmap"
-	"sigs.k8s.io/yaml"
+	"sigs.k8s.io/kustomize/v3@v3.0.0/pkg/ifc"
+	"sigs.k8s.io/kustomize/v3@v3.0.0/pkg/resmap"
+	"sigs.k8s.io/yaml@v1.1.0"
 )
 
 type plugin struct {
