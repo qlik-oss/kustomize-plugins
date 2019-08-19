@@ -2,11 +2,11 @@ package main
 
 import (
 	"github.com/imdario/mergo"
-	"sigs.k8s.io/kustomize/v3@v3.0.0/pkg/ifc"
-	"sigs.k8s.io/kustomize/v3@v3.0.0/pkg/resmap"
-	"sigs.k8s.io/kustomize/v3@v3.0.0/pkg/transformers"
-	"sigs.k8s.io/kustomize/v3@v3.0.0/pkg/transformers/config"
-	"sigs.k8s.io/yaml@v1.1.0"
+	"sigs.k8s.io/kustomize/v3/pkg/ifc"
+	"sigs.k8s.io/kustomize/v3/pkg/resmap"
+	"sigs.k8s.io/kustomize/v3/pkg/transformers"
+	"sigs.k8s.io/kustomize/v3/pkg/transformers/config"
+	"sigs.k8s.io/yaml"
 )
 
 type plugin struct {
