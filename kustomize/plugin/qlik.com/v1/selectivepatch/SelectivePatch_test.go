@@ -10,7 +10,6 @@ import (
 )
 
 func TestStrategicMergePatch(t *testing.T) {
-	t.Log("Hello")
 	tc := plugins_test.NewEnvForTest(t).Set()
 	defer tc.Reset()
 
