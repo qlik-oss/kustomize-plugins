@@ -8,7 +8,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strings"
 
 	"os/exec"
 
@@ -110,10 +109,6 @@ func (p *plugin) Generate() (resmap.ResMap, error) {
 	}
 
 	if len(p.ChartPatches) > 0 {
-		err := p.formatYaml()
-		if err != nil {
-			return nil, err
-		}
 		templatedYaml, err = p.applyPatches(templatedYaml)
 		if err != nil {
 			return nil, err
@@ -242,41 +237,6 @@ func (p *plugin) templateHelm() ([]byte, error) {
 	return out.Bytes(), nil
 }
 
-func (p *plugin) formatYaml() error {
-	dir, err := os.Open(p.ChartHome + "/" + p.ChartPatches)
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-
-	objs, err := dir.Readdirnames(-1)
-	if err != nil {
-		return err
-	}
-	for _, obj := range objs {
-		filePath := filepath.Join(dir.Name(), obj)
-		if filepath.Ext(filePath) == ".yaml" {
-			var parsedString string
-			yamlBytes, err := ioutil.ReadFile(filePath)
-			if err != nil {
-				return err
-			}
-			if strings.Contains(p.ReleaseName, p.ChartName) {
-				parsedString = strings.Replace(string(yamlBytes), "?", "", -1)
-			} else {
-				parsedString = strings.Replace(string(yamlBytes), "?", p.ReleaseName+"-", -1)
-			}
-			parsedYaml := strings.Replace(parsedString, "*", p.ReleaseName+"-", -1)
-
-			err = ioutil.WriteFile(filePath, []byte(parsedYaml), 0644)
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
 func (p *plugin) applyPatches(templatedHelm []byte) ([]byte, error) {
 	// get the patches
 	path := filepath.Join(p.ChartHome + "/" + p.ChartPatches + "/kustomization.yaml")
@@ -288,8 +248,6 @@ func (p *plugin) applyPatches(templatedHelm []byte) ([]byte, error) {
 	var originalYamlMap map[string]interface{}
 
 	yaml.Unmarshal(origYamlBytes, &originalYamlMap)
-	patches := originalYamlMap["patchesJson6902"]
-	patchArray := patches.([]interface{})
 
 	// helmoutput file for kustomize build
 	f, err := os.Create(p.ChartHome + "/" + p.ChartPatches + "/helmoutput.yaml")
@@ -297,46 +255,35 @@ func (p *plugin) applyPatches(templatedHelm []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	// loop through all patches
-	for _, patch := range patchArray {
-
-		_, err = f.Write(templatedHelm)
-		if err != nil {
-			return nil, err
-		}
-
-		kustomizeYaml, err := ioutil.ReadFile(path)
-		if err != nil {
-			return nil, err
-		}
-
-		var kustomizeYamlMap map[string]interface{}
-		yaml.Unmarshal(kustomizeYaml, &kustomizeYamlMap)
-
-		// delete old resources in map
-		delete(kustomizeYamlMap, "patchesJson6902")
-		delete(kustomizeYamlMap, "resources")
-
-		//merge patch data together
-		mergedData, err := mergeValues(kustomizeYamlMap["patchesJson6902"], patch)
-
-		// update yaml
-		kustomizeYamlMap["patchesJson6902"] = []interface{}{mergedData}
-		kustomizeYamlMap["resources"] = []string{"helmoutput.yaml"}
-
-		yamlM, err := yaml.Marshal(kustomizeYamlMap)
-		if err != nil {
-			return nil, err
-		}
-
-		ioutil.WriteFile(path, yamlM, 0644)
-		// kustomize build
-		templatedHelm, err = p.buildPatches()
-		if err != nil {
-			return nil, err
-		}
-
+	_, err = f.Write(templatedHelm)
+	if err != nil {
+		return nil, err
 	}
+
+	kustomizeYaml, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var kustomizeYamlMap map[string]interface{}
+	yaml.Unmarshal(kustomizeYaml, &kustomizeYamlMap)
+
+	delete(kustomizeYamlMap, "resources")
+
+	kustomizeYamlMap["resources"] = []string{"helmoutput.yaml"}
+
+	yamlM, err := yaml.Marshal(kustomizeYamlMap)
+	if err != nil {
+		return nil, err
+	}
+
+	ioutil.WriteFile(path, yamlM, 0644)
+	// kustomize build
+	templatedHelm, err = p.buildPatches()
+	if err != nil {
+		return nil, err
+	}
+
 	return templatedHelm, nil
 }
 
