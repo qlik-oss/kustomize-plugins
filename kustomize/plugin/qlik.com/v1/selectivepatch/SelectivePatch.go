@@ -6,7 +6,6 @@ import (
 	"sigs.k8s.io/kustomize/v3/pkg/ifc"
 	"sigs.k8s.io/kustomize/v3/pkg/loader"
 	"sigs.k8s.io/kustomize/v3/pkg/resmap"
-	"sigs.k8s.io/kustomize/v3/pkg/transformers"
 	"sigs.k8s.io/kustomize/v3/pkg/types"
 	"sigs.k8s.io/kustomize/v3/plugin/builtin"
 	"sigs.k8s.io/yaml"
@@ -15,7 +14,7 @@ import (
 type plugin struct {
 	Enabled bool          `json:"enabled,omitempty" yaml:"enabled,omitempty"`
 	Patches []types.Patch `json:"patches,omitempty" yaml:"patches,omitempty"`
-	ts      []transformers.Transformer
+	ts      []resmap.Transformer
 }
 
 //nolint: go-lint noinspection GoUnusedGlobalVariable
