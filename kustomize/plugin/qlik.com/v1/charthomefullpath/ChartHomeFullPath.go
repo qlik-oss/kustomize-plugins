@@ -7,7 +7,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/qlik-trial/kustomize-plugins/kustomize/utils"
+	"github.com/qlik-oss/kustomize-plugins/kustomize/utils"
 
 	"sigs.k8s.io/kustomize/v3/pkg/ifc"
 	"sigs.k8s.io/kustomize/v3/pkg/resmap"
