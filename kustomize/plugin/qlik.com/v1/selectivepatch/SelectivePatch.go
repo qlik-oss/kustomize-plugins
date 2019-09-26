@@ -1,7 +1,10 @@
 package main
 
 import (
+	"log"
+
 	"github.com/pkg/errors"
+	"github.com/qlik-trial/kustomize-plugins/kustomize/utils"
 	"sigs.k8s.io/kustomize/v3/pkg/fs"
 	"sigs.k8s.io/kustomize/v3/pkg/ifc"
 	"sigs.k8s.io/kustomize/v3/pkg/loader"
@@ -20,6 +23,12 @@ type plugin struct {
 //nolint: go-lint noinspection GoUnusedGlobalVariable
 var KustomizePlugin plugin
 
+var logger *log.Logger
+
+func init() {
+	logger = utils.GetLogger("SelectivePatch")
+}
+
 func (p *plugin) makeIndividualPatches(pat types.Patch) ([]byte, error) {
 	var s struct {
 		types.Patch
@@ -28,19 +37,18 @@ func (p *plugin) makeIndividualPatches(pat types.Patch) ([]byte, error) {
 	return yaml.Marshal(s)
 }
 
-func (p *plugin) Config(
-	ldr ifc.Loader, rf *resmap.Factory, c []byte) error {
-
+func (p *plugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []byte) error {
 	// To avoid https://github.com/kubernetes-sigs/kustomize/blob/master/docs/FAQ.md#security-file-foo-is-not-in-or-below-bar
 	// start of work around
 	fSys := fs.MakeRealFS()
-	newLdr, er := loader.NewLoader(loader.RestrictionNone, ldr.Validator(), ldr.Root(), fSys)
-	if er != nil {
-		return errors.Wrapf(er, "Cannot create new laoder from default loader")
+	newLdr, err := loader.NewLoader(loader.RestrictionNone, ldr.Validator(), ldr.Root(), fSys)
+	if err != nil {
+		logger.Printf("error creating a new loader from default loader, error: %v\n", err)
+		return errors.Wrapf(err, "Cannot create new loader from default loader")
 	}
 	// End of work around
-	err := yaml.Unmarshal(c, p)
-	if err != nil {
+	if err := yaml.Unmarshal(c, p); err != nil {
+		logger.Printf("error unmarshalling bytes: %v, error: %v\n", string(c), err)
 		return errors.Wrapf(err, "Inside unmarshal "+string(c))
 	}
 	for _, v := range p.Patches {
@@ -49,8 +57,8 @@ func (p *plugin) Config(
 		prefixer := builtin.NewPatchTransformerPlugin()
 		err = prefixer.Config(newLdr, rf, b)
 		if err != nil {
-			return errors.Wrapf(
-				err, "stringprefixer configure")
+			logger.Printf("error executing PatchTransformerPlugin.Config(), error: %v\n", err)
+			return errors.Wrapf(err, "stringprefixer configure")
 		}
 		p.ts = append(p.ts, prefixer)
 
@@ -65,6 +73,7 @@ func (p *plugin) Transform(m resmap.ResMap) error {
 	for _, t := range p.ts {
 		err := t.Transform(m)
 		if err != nil {
+			logger.Printf("error executing Transform(), error: %v\n", err)
 			return err
 		}
 	}
