@@ -23,7 +23,7 @@ type plugin struct {
 	ValuesName       string
 }
 
-//nolint: go-lint noinspection GoUnusedGlobalVariable
+//nolint: golint noinspection GoUnusedGlobalVariable
 var KustomizePlugin plugin
 
 var logger *log.Logger

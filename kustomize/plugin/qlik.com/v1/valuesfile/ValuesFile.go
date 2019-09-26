@@ -24,7 +24,7 @@ type plugin struct {
 	rf         *resmap.Factory
 }
 
-//nolint: go-lint noinspection GoUnusedGlobalVariable
+//nolint: golint noinspection GoUnusedGlobalVariable
 var KustomizePlugin plugin
 
 var logger *log.Logger
