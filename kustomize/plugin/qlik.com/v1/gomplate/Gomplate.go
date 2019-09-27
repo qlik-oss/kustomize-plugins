@@ -1,13 +1,13 @@
 package main
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
-	"os/exec"
-	"path/filepath"
+
+	"github.com/qlik-oss/kustomize-plugins/kustomize/utils"
 
 	"sigs.k8s.io/kustomize/v3/pkg/ifc"
 	"sigs.k8s.io/kustomize/v3/pkg/resmap"
@@ -24,8 +24,13 @@ type plugin struct {
 //nolint: go-lint noinspection GoUnusedGlobalVariable
 var KustomizePlugin plugin
 
-func (p *plugin) Config(
-	ldr ifc.Loader, rf *resmap.Factory, c []byte) (err error) {
+var logger *log.Logger
+
+func init() {
+	logger = utils.GetLogger("Gomplate")
+}
+
+func (p *plugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []byte) (err error) {
 	p.ldr = ldr
 	p.rf = rf
 	p.Pwd = ldr.Root()
@@ -34,40 +39,50 @@ func (p *plugin) Config(
 
 func (p *plugin) Transform(m resmap.ResMap) error {
 	var env []string
-	var vaultAddressPath, vaultTokenPath interface{}
+	var vaultAddressPath, vaultTokenPath string
 	var vaultAddress, vaultToken, ejsonKey string
 	if p.DataSource["vault"] != nil {
-		vaultAddressPath = p.DataSource["vault"].(map[string]interface{})["addressPath"]
-		vaultTokenPath = p.DataSource["vault"].(map[string]interface{})["tokenPath"]
+		vaultAddressPath = fmt.Sprintf("%s", p.DataSource["vault"].(map[string]interface{})["addressPath"])
+		vaultTokenPath = fmt.Sprintf("%s", p.DataSource["vault"].(map[string]interface{})["tokenPath"])
 
-		if _, err := os.Stat(fmt.Sprintf("%v", vaultAddressPath)); os.IsNotExist(err) {
-			readBytes, err := ioutil.ReadFile(fmt.Sprintf("%v", vaultAddressPath))
+		if _, err := os.Stat(vaultAddressPath); os.IsNotExist(err) {
+			readBytes, err := ioutil.ReadFile(vaultAddressPath)
 			if err != nil {
+				logger.Printf("error reading vault address file: %v, error: %v\n", vaultAddressPath, err)
 				return err
 			}
 			vaultAddress = fmt.Sprintf("VAULT_ADDR=%s", string(readBytes))
 			env = append(env, vaultAddress)
+		} else if err != nil {
+			logger.Printf("error executing stat on vault address file: %v, error: %v\n", vaultAddressPath, err)
 		}
-		if _, err := os.Stat(fmt.Sprintf("%v", vaultTokenPath)); os.IsNotExist(err) {
-			readBytes, err := ioutil.ReadFile(fmt.Sprintf("%v", vaultTokenPath))
+
+		if _, err := os.Stat(vaultTokenPath); os.IsNotExist(err) {
+			readBytes, err := ioutil.ReadFile(vaultTokenPath)
 			if err != nil {
+				logger.Printf("error reading vault token file: %v, error: %v\n", vaultTokenPath, err)
 				return err
 			}
 			vaultToken = fmt.Sprintf("VAULT_TOKEN=%s", string(readBytes))
 			env = append(env, vaultToken)
+		} else if err != nil {
+			logger.Printf("error executing stat on vault token file: %v, error: %v\n", vaultTokenPath, err)
 		}
 	}
 
-	var ejsonPrivateKeyPath interface{}
+	var ejsonPrivateKeyPath string
 	if p.DataSource["ejson"] != nil {
-		ejsonPrivateKeyPath = p.DataSource["ejson"].(map[string]interface{})["privateKeyPath"]
-		if _, err := os.Stat(fmt.Sprintf("%v", ejsonPrivateKeyPath)); err == nil {
-			readBytes, err := ioutil.ReadFile(fmt.Sprintf("%v", ejsonPrivateKeyPath))
+		ejsonPrivateKeyPath = fmt.Sprintf("%s", p.DataSource["ejson"].(map[string]interface{})["privateKeyPath"])
+		if _, err := os.Stat(ejsonPrivateKeyPath); err == nil {
+			readBytes, err := ioutil.ReadFile(ejsonPrivateKeyPath)
 			if err != nil {
+				logger.Printf("error reading ejson private key file: %v, error: %v\n", ejsonPrivateKeyPath, err)
 				return err
 			}
 			ejsonKey = fmt.Sprintf("EJSON_KEY=%s", string(readBytes))
 			env = append(env, ejsonKey)
+		} else {
+			logger.Printf("error executing stat on ejson private key file: %v, error: %v\n", ejsonPrivateKeyPath, err)
 		}
 	}
 	if os.Getenv("EJSON_KEY") != "" && ejsonKey == "" {
@@ -75,46 +90,33 @@ func (p *plugin) Transform(m resmap.ResMap) error {
 		env = append(env, ejsonKey)
 	}
 
-	var dataSource interface{}
+	var dataSource string
 	if ejsonKey != "" {
-		dataSource = p.DataSource["ejson"].(map[string]interface{})["filePath"]
+		dataSource = fmt.Sprintf("%s", p.DataSource["ejson"].(map[string]interface{})["filePath"])
 	} else if vaultAddress != "" && vaultToken != "" {
-		dataSource = p.DataSource["vault"].(map[string]interface{})["secretPath"]
+		dataSource = fmt.Sprintf("%s", p.DataSource["vault"].(map[string]interface{})["secretPath"])
 	} else {
+		logger.Print("returning error exit 1\n")
 		return errors.New("exit 1")
 	}
 
 	for _, r := range m.Resources() {
-
 		yamlByte, err := r.AsYAML()
 		if err != nil {
+			logger.Printf("error getting resource as yaml: %v, error: %v\n", r.GetName(), err)
 			return err
 		}
-		output, err := runGomplate(dataSource, p.Pwd, env, string(yamlByte))
+		output, err := utils.RunGomplate(dataSource, p.Pwd, env, string(yamlByte), logger)
 		if err != nil {
+			logger.Printf("error executing runGomplate() on dataSource: %v, in directory: %v, error: %v\n", dataSource, p.Pwd, err)
 			return err
 		}
-		res, _ := p.rf.RF().FromBytes(output)
+		res, err := p.rf.RF().FromBytes(output)
+		if err != nil {
+			logger.Printf("error unmarshalling resource from bytes: %v\n", err)
+			return err
+		}
 		r.SetMap(res.Map())
 	}
 	return nil
-}
-
-func runGomplate(dataSource interface{}, pwd string, env []string, temp string) ([]byte, error) {
-	dataLocation := filepath.Join(pwd, fmt.Sprintf("%v", dataSource))
-	data := fmt.Sprintf(`--datasource=data=%s`, dataLocation)
-	from := fmt.Sprintf(`--in=%s`, temp)
-
-	gomplateCmd := exec.Command("gomplate", `--left-delim=((`, `--right-delim=))`, data, from)
-
-	gomplateCmd.Env = append(os.Environ(), env...)
-
-	var out bytes.Buffer
-	gomplateCmd.Stdout = &out
-	err := gomplateCmd.Run()
-
-	if err != nil {
-		return nil, err
-	}
-	return out.Bytes(), nil
 }

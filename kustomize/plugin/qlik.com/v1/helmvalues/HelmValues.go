@@ -1,7 +1,11 @@
 package main
 
 import (
+	"log"
+
 	"github.com/imdario/mergo"
+	"github.com/qlik-oss/kustomize-plugins/kustomize/utils"
+
 	"sigs.k8s.io/kustomize/v3/pkg/ifc"
 	"sigs.k8s.io/kustomize/v3/pkg/resmap"
 	"sigs.k8s.io/kustomize/v3/pkg/transformers"
@@ -22,8 +26,13 @@ type plugin struct {
 //nolint: golint noinspection GoUnusedGlobalVariable
 var KustomizePlugin plugin
 
-func (p *plugin) Config(
-	ldr ifc.Loader, rf *resmap.Factory, c []byte) (err error) {
+var logger *log.Logger
+
+func init() {
+	logger = utils.GetLogger("HelmValues")
+}
+
+func (p *plugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []byte) (err error) {
 	return yaml.Unmarshal(c, p)
 }
 
@@ -43,6 +52,7 @@ func (p *plugin) mutateValues(in interface{}) (interface{}, error) {
 	mergeFrom["root"] = in
 	err := mergeValues(&mergedData, mergeFrom, p.Overwrite)
 	if err != nil {
+		logger.Printf("error executing mergeValues(), error: %v\n", err)
 		return nil, err
 	}
 
@@ -54,6 +64,7 @@ func (p *plugin) mutateValues(in interface{}) (interface{}, error) {
 	}
 	err = mergeValues(&mergedData, mergeFrom, p.Overwrite)
 	if err != nil {
+		logger.Printf("error executing mergeValues(), error: %v\n", err)
 		return nil, err
 	}
 	return mergedData["root"], nil
@@ -63,46 +74,58 @@ func (p *plugin) Transform(m resmap.ResMap) error {
 	for _, r := range m.Resources() {
 		if isHelmChart(r) {
 			if applyResources(r, p.Chart) {
+				pathToField := []string{"values"}
 				err := transformers.MutateField(
 					r.Map(),
-					[]string{"values"},
+					pathToField,
 					true,
 					p.mutateValues)
 				if err != nil {
+					logger.Printf("error executing MutateField for chart: %v, pathToField: %v, error: %v\n", p.Chart, pathToField, err)
 					return err
 				}
 			}
 		}
-		name, _ := r.GetString("chartName")
+		name, err := r.GetString("chartName")
+		if err != nil {
+			logger.Printf("error extracting chartName attribute for chart: %v, error: %v\n", p.Chart, err)
+		}
+
 		if p.Values[name] != nil && p.Values[name] != "null" {
 			p.ValuesName = name
+			pathToField := []string{"values", name}
 			err := transformers.MutateField(
 				r.Map(),
-				[]string{"values", name},
+				pathToField,
 				true,
 				p.mutateValues)
 			if err != nil {
+				logger.Printf("error executing MutateField for chart: %v, pathToField: %v, error: %v\n", p.Chart, pathToField, err)
 				return err
 			}
 			p.ValuesName = ""
 		}
 		if len(p.ReleaseNamespace) > 0 && p.ReleaseNamespace != "null" {
+			pathToField := []string{"releaseNamespace"}
 			err := transformers.MutateField(
 				r.Map(),
-				[]string{"releaseNamespace"},
+				pathToField,
 				true,
 				p.mutateReleaseNameSpace)
 			if err != nil {
+				logger.Printf("error executing MutateField for chart: %v, pathToField: %v, error: %v\n", p.Chart, pathToField, err)
 				return err
 			}
 		}
 		if len(p.ReleaseName) > 0 && p.ReleaseName != "null" {
+			pathToField := []string{"releaseName"}
 			err := transformers.MutateField(
 				r.Map(),
-				[]string{"releaseName"},
+				pathToField,
 				true,
 				p.mutateReleaseName)
 			if err != nil {
+				logger.Printf("error executing MutateField for chart: %v, pathToField: %v, error: %v\n", p.Chart, pathToField, err)
 				return err
 			}
 		}

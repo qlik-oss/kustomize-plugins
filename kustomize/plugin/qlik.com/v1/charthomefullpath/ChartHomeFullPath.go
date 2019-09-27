@@ -2,10 +2,12 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"path"
+
+	"github.com/qlik-oss/kustomize-plugins/kustomize/utils"
 
 	"sigs.k8s.io/kustomize/v3/pkg/ifc"
 	"sigs.k8s.io/kustomize/v3/pkg/resmap"
@@ -25,8 +27,13 @@ type plugin struct {
 //nolint: golint noinspection GoUnusedGlobalVariable
 var KustomizePlugin plugin
 
-func (p *plugin) Config(
-	ldr ifc.Loader, rf *resmap.Factory, c []byte) (err error) {
+var logger *log.Logger
+
+func init() {
+	logger = utils.GetLogger("ChartHomeFullPath")
+}
+
+func (p *plugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []byte) (err error) {
 	p.Root = ldr.Root()
 	return yaml.Unmarshal(c, p)
 }
@@ -34,16 +41,19 @@ func (p *plugin) Config(
 func (p *plugin) mutate(in interface{}) (interface{}, error) {
 	dir, err := ioutil.TempDir("", "temp")
 	if err != nil {
+		logger.Printf("error creating temporaty directory: %v\n", err)
 		return nil, err
 	}
 	directory := fmt.Sprintf("%s/%s", dir, p.ChartName)
 	err = os.Mkdir(directory, 0777)
 	if err != nil {
+		logger.Printf("error creating directory: %v, error: %v\n", directory, err)
 		return nil, err
 	}
 	if p.Kind == "HelmChart" {
-		err := copyDir(p.ChartHome, directory)
+		err := utils.CopyDir(p.ChartHome, directory, logger)
 		if err != nil {
+			logger.Printf("error copying directory from: %v, to: %v, error: %v\n", p.ChartHome, directory, err)
 			return nil, err
 		}
 	}
@@ -53,15 +63,18 @@ func (p *plugin) mutate(in interface{}) (interface{}, error) {
 func (p *plugin) Transform(m resmap.ResMap) error {
 	//join the root(root of kustomize file) + location to chartHome
 	p.ChartHome = path.Join(p.Root, p.ChartHome)
+
 	for _, r := range m.Resources() {
 		p.ChartName = GetFieldValue(r, "chartName")
 		p.Kind = GetFieldValue(r, "kind")
+		pathToField := []string{"chartHome"}
 		err := transformers.MutateField(
 			r.Map(),
-			[]string{"chartHome"},
+			pathToField,
 			true,
 			p.mutate)
 		if err != nil {
+			logger.Printf("error executing MutateField for chart: %v, pathToField: %v, error: %v\n", p.ChartName, pathToField, err)
 			return err
 		}
 	}
@@ -71,71 +84,8 @@ func (p *plugin) Transform(m resmap.ResMap) error {
 func GetFieldValue(obj ifc.Kunstructured, fieldName string) string {
 	v, err := obj.GetString(fieldName)
 	if err != nil {
+		logger.Printf("error extracting fieldName: %v (will return empty string), error: %v\n", fieldName, err)
 		return ""
 	}
 	return v
-}
-
-// copy source file to destination location
-func copyFile(source string, dest string) error {
-	sourceFile, err := os.Open(source)
-	if err != nil {
-		return err
-	}
-	defer sourceFile.Close()
-
-	destinationFile, err := os.Create(dest)
-	if err != nil {
-		return err
-	}
-
-	defer destinationFile.Close()
-
-	_, err = io.Copy(destinationFile, sourceFile)
-	if err == nil {
-		sourceinfo, err := os.Stat(source)
-		if err != nil {
-			err = os.Chmod(dest, sourceinfo.Mode())
-			return err
-		}
-	}
-	return nil
-}
-
-//copy source directory to destination
-func copyDir(source string, dest string) error {
-	sourceinfo, err := os.Stat(source)
-	if err != nil {
-		return err
-	}
-
-	err = os.MkdirAll(dest, sourceinfo.Mode())
-	if err != nil {
-		return err
-	}
-	sourceDirectory, _ := os.Open(source)
-	// read everything within source directory
-	objects, _ := sourceDirectory.Readdir(-1)
-
-	// go through all files/directories
-	for _, obj := range objects {
-
-		sourceFileName := source + "/" + obj.Name()
-
-		destinationFileName := dest + "/" + obj.Name()
-
-		if obj.IsDir() {
-			err := copyDir(sourceFileName, destinationFileName)
-			if err != nil {
-				return err
-			}
-		} else {
-			err := copyFile(sourceFileName, destinationFileName)
-			if err != nil {
-				return err
-			}
-		}
-
-	}
-	return nil
 }
