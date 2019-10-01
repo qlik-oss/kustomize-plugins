@@ -1,2 +1,4 @@
 *.so
 .vscode
+/go.mod
+/go.sum
