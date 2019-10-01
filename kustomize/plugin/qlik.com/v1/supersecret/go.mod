@@ -1,4 +1,4 @@
-module github.com/qlik-oss/kustomize-plugins/kustomize/plugin/qlik.com/v1/secrethashtransformer
+module github.com/qlik-oss/kustomize-plugins/kustomize/plugin/qlik.com/v1/supersecret
 
 go 1.12
 
