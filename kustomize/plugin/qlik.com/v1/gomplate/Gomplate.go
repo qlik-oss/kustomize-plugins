@@ -95,6 +95,8 @@ func (p *plugin) Transform(m resmap.ResMap) error {
 		dataSource = fmt.Sprintf("%s", p.DataSource["ejson"].(map[string]interface{})["filePath"])
 	} else if vaultAddress != "" && vaultToken != "" {
 		dataSource = fmt.Sprintf("%s", p.DataSource["vault"].(map[string]interface{})["secretPath"])
+	} else if p.DataSource["file"] != nil {
+		dataSource = fmt.Sprintf("%s", p.DataSource["file"].(map[string]interface{})["path"])
 	} else {
 		logger.Print("returning error exit 1\n")
 		return errors.New("exit 1")
