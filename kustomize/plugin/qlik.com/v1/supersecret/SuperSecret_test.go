@@ -2,40 +2,16 @@ package main
 
 import (
 	"encoding/base64"
-	"regexp"
+	"fmt"
+	"github.com/qlik-oss/kustomize-plugins/kustomize/utils"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"sigs.k8s.io/kustomize/v3/k8sdeps/kunstruct"
 	"sigs.k8s.io/kustomize/v3/k8sdeps/transformer"
-	"sigs.k8s.io/kustomize/v3/k8sdeps/validator"
-	"sigs.k8s.io/kustomize/v3/pkg/ifc"
 	"sigs.k8s.io/kustomize/v3/pkg/resmap"
 	"sigs.k8s.io/kustomize/v3/pkg/resource"
-	"sigs.k8s.io/kustomize/v3/pkg/types"
 )
-
-type mockLoader struct {
-}
-
-func (ml *mockLoader) Root() string {
-	return ""
-}
-func (ml *mockLoader) New(newRoot string) (ifc.Loader, error) {
-	return ml, nil
-}
-func (ml *mockLoader) Load(location string) ([]byte, error) {
-	return nil, nil
-}
-func (ml *mockLoader) Cleanup() error {
-	return nil
-}
-func (ml *mockLoader) Validator() ifc.Validator {
-	return validator.NewKustValidator()
-}
-func (ml *mockLoader) LoadKvPairs(args types.GeneratorArgs) ([]types.Pair, error) {
-	return nil, nil
-}
 
 func TestSuperSecret_simpleTransformerMode(t *testing.T) {
 	pluginInputResources := `
@@ -74,13 +50,12 @@ spec:
 		checkAssertions      func(*testing.T, resmap.ResMap)
 	}{
 		{
-			name: "simpleTransformer_withoutHash_withoutStringData",
+			name: "doesNothingWithoutStringData",
 			pluginConfig: `
 apiVersion: qlik.com/v1
 kind: SuperSecret
 metadata:
   name: mySecret
-disableNameSuffixHash: true
 `,
 			pluginInputResources: pluginInputResources,
 			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
@@ -90,41 +65,30 @@ disableNameSuffixHash: true
 						foundSecretResource = true
 						assert.Equal(t, "mySecret", res.GetName())
 
+						data, err := res.GetFieldValue("data")
+						assert.NoError(t, err)
+						assert.True(t, len(data.(map[string]interface{})) == 1)
+
 						value, err := res.GetFieldValue("data.PASSWORD")
 						assert.NoError(t, err)
-						assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("whatever")), value)
+						assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("whatever")), value.(string))
 
 						break
 					}
 				}
 				assert.True(t, foundSecretResource)
-
-				foundDeployment := false
-				for _, res := range resMap.Resources() {
-					if res.GetKind() == "Deployment" {
-						foundDeployment = true
-
-						value, err := res.GetFieldValue("spec.template.spec.volumes[0].secret.secretName")
-						assert.NoError(t, err)
-						assert.Equal(t, "mySecret", value)
-
-						break
-					}
-				}
-				assert.True(t, foundDeployment)
 			},
 		},
 		{
-			name: "simpleTransformer_withoutHash_withStringData",
+			name: "doesNothingIfCantFindSecretName",
 			pluginConfig: `
 apiVersion: qlik.com/v1
 kind: SuperSecret
 metadata:
-  name: mySecret
+ name: cantFindThisSecret
 stringData:
-  foo: bar
-  baz: whatever
-disableNameSuffixHash: true
+ foo: bar
+ baz: whatever
 `,
 			pluginInputResources: pluginInputResources,
 			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
@@ -133,6 +97,43 @@ disableNameSuffixHash: true
 					if res.GetKind() == "Secret" {
 						foundSecretResource = true
 						assert.Equal(t, "mySecret", res.GetName())
+
+						data, err := res.GetFieldValue("data")
+						assert.NoError(t, err)
+						assert.True(t, len(data.(map[string]interface{})) == 1)
+
+						value, err := res.GetFieldValue("data.PASSWORD")
+						assert.NoError(t, err)
+						assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("whatever")), value.(string))
+
+						break
+					}
+				}
+				assert.True(t, foundSecretResource)
+			},
+		},
+		{
+			name: "appendsStringDataIfSecretInStream",
+			pluginConfig: `
+apiVersion: qlik.com/v1
+kind: SuperSecret
+metadata:
+ name: mySecret
+stringData:
+ foo: bar
+ baz: whatever
+`,
+			pluginInputResources: pluginInputResources,
+			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
+				foundSecretResource := false
+				for _, res := range resMap.Resources() {
+					if res.GetKind() == "Secret" {
+						foundSecretResource = true
+						assert.Equal(t, "mySecret", res.GetName())
+
+						data, err := res.GetFieldValue("data")
+						assert.NoError(t, err)
+						assert.True(t, len(data.(map[string]interface{})) == 3)
 
 						value, err := res.GetFieldValue("data.PASSWORD")
 						assert.NoError(t, err)
@@ -150,119 +151,6 @@ disableNameSuffixHash: true
 					}
 				}
 				assert.True(t, foundSecretResource)
-
-				foundDeployment := false
-				for _, res := range resMap.Resources() {
-					if res.GetKind() == "Deployment" {
-						foundDeployment = true
-
-						value, err := res.GetFieldValue("spec.template.spec.volumes[0].secret.secretName")
-						assert.NoError(t, err)
-						assert.Equal(t, "mySecret", value)
-
-						break
-					}
-				}
-				assert.True(t, foundDeployment)
-			},
-		},
-		{
-			name: "simpleTransformer_withHash_withoutStringData",
-			pluginConfig: `
-apiVersion: qlik.com/v1
-kind: SuperSecret
-metadata:
-  name: mySecret
-`,
-			pluginInputResources: pluginInputResources,
-			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
-				newSecretName := ""
-				for _, res := range resMap.Resources() {
-					if res.GetKind() == "Secret" {
-						newSecretName = res.GetName()
-
-						match, err := regexp.MatchString("^mySecret-[0-9a-z]+$", newSecretName)
-						assert.NoError(t, err)
-						assert.True(t, match)
-
-						value, err := res.GetFieldValue("data.PASSWORD")
-						assert.NoError(t, err)
-						assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("whatever")), value)
-
-						break
-					}
-				}
-				assert.True(t, len(newSecretName) > 0)
-
-				foundDeployment := false
-				for _, res := range resMap.Resources() {
-					if res.GetKind() == "Deployment" {
-						foundDeployment = true
-
-						value, err := res.GetFieldValue("spec.template.spec.volumes[0].secret.secretName")
-						assert.NoError(t, err)
-						assert.Equal(t, newSecretName, value)
-
-						break
-					}
-				}
-
-				assert.True(t, foundDeployment)
-			},
-		},
-		{
-			name: "simpleTransformer_withHash_withStringData",
-			pluginConfig: `
-apiVersion: qlik.com/v1
-kind: SuperSecret
-metadata:
-  name: mySecret
-stringData:
-  foo: bar
-  baz: whatever
-`,
-			pluginInputResources: pluginInputResources,
-			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
-				newSecretName := ""
-				for _, res := range resMap.Resources() {
-					if res.GetKind() == "Secret" {
-						newSecretName = res.GetName()
-
-						match, err := regexp.MatchString("^mySecret-[0-9a-z]+$", newSecretName)
-						assert.NoError(t, err)
-						assert.True(t, match)
-
-						value, err := res.GetFieldValue("data.PASSWORD")
-						assert.NoError(t, err)
-						assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("whatever")), value)
-
-						value, err = res.GetFieldValue("data.foo")
-						assert.NoError(t, err)
-						assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("bar")), value)
-
-						value, err = res.GetFieldValue("data.baz")
-						assert.NoError(t, err)
-						assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("whatever")), value)
-
-						break
-					}
-				}
-				assert.True(t, len(newSecretName) > 0)
-
-				foundDeployment := false
-				for _, res := range resMap.Resources() {
-					if res.GetKind() == "Deployment" {
-						foundDeployment = true
-
-						value, err := res.GetFieldValue("spec.template.spec.volumes[0].secret.secretName")
-						assert.NoError(t, err)
-						assert.Equal(t, newSecretName, value)
-
-						break
-					}
-				}
-
-				assert.True(t, foundDeployment)
 			},
 		},
 	}
@@ -276,7 +164,7 @@ stringData:
 				t.Fatalf("Err: %v", err)
 			}
 
-			err = KustomizePlugin.Config(&mockLoader{}, resourceFactory, []byte(testCase.pluginConfig))
+			err = KustomizePlugin.Config(utils.NewFakeLoader("/"), resourceFactory, []byte(testCase.pluginConfig))
 			if err != nil {
 				t.Fatalf("Err: %v", err)
 			}
@@ -284,6 +172,174 @@ stringData:
 			err = KustomizePlugin.Transform(resMap)
 			if err != nil {
 				t.Fatalf("Err: %v", err)
+			}
+
+			for _, res := range resMap.Resources() {
+				fmt.Printf("--res: %v\n", res.String())
+			}
+
+			testCase.checkAssertions(t, resMap)
+		})
+	}
+}
+
+func TestSuperSecret_generator(t *testing.T) {
+	testCases := []struct {
+		name                 string
+		pluginConfig         string
+		pluginInputResources string
+		checkAssertions      func(*testing.T, resmap.ResMap)
+	}{
+		{
+			name: "withoutHash_withoutStringData",
+			pluginConfig: `
+apiVersion: qlik.com/v1
+kind: SuperSecret
+metadata:
+  name: mySecret
+behavior: create
+disableNameSuffixHash: true
+`,
+			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
+				foundSecretResource := false
+				for _, res := range resMap.Resources() {
+					if res.GetKind() == "Secret" {
+						foundSecretResource = true
+						assert.Equal(t, "mySecret", res.GetName())
+						assert.False(t, res.NeedHashSuffix())
+
+						data, err := res.GetFieldValue("data")
+						assert.Error(t, err)
+						assert.Nil(t, data)
+
+						break
+					}
+				}
+				assert.True(t, foundSecretResource)
+			},
+		},
+		{
+			name: "withoutHash_withStringData",
+			pluginConfig: `
+apiVersion: qlik.com/v1
+kind: SuperSecret
+metadata:
+ name: mySecret
+stringData:
+ foo: bar
+ baz: whatever
+behavior: create
+disableNameSuffixHash: true
+`,
+			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
+				foundSecretResource := false
+				for _, res := range resMap.Resources() {
+					if res.GetKind() == "Secret" {
+						foundSecretResource = true
+						assert.Equal(t, "mySecret", res.GetName())
+						assert.False(t, res.NeedHashSuffix())
+
+						data, err := res.GetFieldValue("data")
+						assert.NoError(t, err)
+						assert.True(t, len(data.(map[string]interface{})) == 2)
+
+						value, err := res.GetFieldValue("data.foo")
+						assert.NoError(t, err)
+						assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("bar")), value)
+
+						value, err = res.GetFieldValue("data.baz")
+						assert.NoError(t, err)
+						assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("whatever")), value)
+
+						break
+					}
+				}
+				assert.True(t, foundSecretResource)
+			},
+		},
+		{
+			name: "withHash_withoutStringData",
+			pluginConfig: `
+apiVersion: qlik.com/v1
+kind: SuperSecret
+metadata:
+ name: mySecret
+behavior: create
+`,
+			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
+				foundSecretResource := false
+				for _, res := range resMap.Resources() {
+					if res.GetKind() == "Secret" {
+						foundSecretResource = true
+						assert.Equal(t, "mySecret", res.GetName())
+						assert.True(t, res.NeedHashSuffix())
+
+						data, err := res.GetFieldValue("data")
+						assert.Error(t, err)
+						assert.Nil(t, data)
+
+						break
+					}
+				}
+				assert.True(t, foundSecretResource)
+			},
+		},
+		{
+			name: "withHash_withStringData",
+			pluginConfig: `
+apiVersion: qlik.com/v1
+kind: SuperSecret
+metadata:
+ name: mySecret
+stringData:
+ foo: bar
+ baz: whatever
+behavior: create
+`,
+			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
+				foundSecretResource := false
+				for _, res := range resMap.Resources() {
+					if res.GetKind() == "Secret" {
+						foundSecretResource = true
+						assert.Equal(t, "mySecret", res.GetName())
+						assert.True(t, res.NeedHashSuffix())
+
+						data, err := res.GetFieldValue("data")
+						assert.NoError(t, err)
+						assert.True(t, len(data.(map[string]interface{})) == 2)
+
+						value, err := res.GetFieldValue("data.foo")
+						assert.NoError(t, err)
+						assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("bar")), value)
+
+						value, err = res.GetFieldValue("data.baz")
+						assert.NoError(t, err)
+						assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("whatever")), value)
+
+						break
+					}
+				}
+				assert.True(t, foundSecretResource)
+			},
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			resourceFactory := resmap.NewFactory(resource.NewFactory(
+				kunstruct.NewKunstructuredFactoryImpl()), transformer.NewFactoryImpl())
+
+			err := KustomizePlugin.Config(utils.NewFakeLoader("/"), resourceFactory, []byte(testCase.pluginConfig))
+			if err != nil {
+				t.Fatalf("Err: %v", err)
+			}
+
+			resMap, err := KustomizePlugin.Generate()
+			if err != nil {
+				t.Fatalf("Err: %v", err)
+			}
+
+			for _, res := range resMap.Resources() {
+				fmt.Printf("--res: %v\n", res.String())
 			}
 
 			testCase.checkAssertions(t, resMap)
