@@ -2,6 +2,9 @@
 
 ## Using as a transformer:
 
+When used as a `transformer`, the plugin will optionally append a name suffix hash for the specified secret unless specifically disabled by setting `disableNameSuffixHash: true`.
+It will also optionally append data to the secret from the contents of the `stringData` map. Name suffix hash is calculated after any updates to the secret's data.   
+
 Create a layout that looks like this:
 ```text
 tree .
@@ -119,6 +122,10 @@ spec:
 ```
 
 ## Using as a generator:
+
+When used as a `generator`, the plugin will generate a secret with the specified name.
+It will also optionally append a name suffix hash unless specifically disabled by setting `disableNameSuffixHash: true`.
+The data of the secret will be set from the contents of the `stringData` map.
 
 Create a layout that looks like this:
 ```text
