@@ -30,6 +30,7 @@ type plugin struct {
 	ReleaseNamespace string                 `json:"releaseNamespace,omitempty" yaml:"releaseNamespace,omitempty"`
 	ExtraArgs        string                 `json:"extraArgs,omitempty" yaml:"extraArgs,omitempty"`
 	ChartPatches     string                 `json:"chartPatches,omitempty" yaml:"chartPatches,omitempty"`
+	SubChart         string       			`json:"subChart,omitempty" yaml:"subChart,omitempty"`
 	ChartVersionExp  string
 	ldr              ifc.Loader
 	rf               *resmap.Factory
@@ -196,6 +197,7 @@ func (p *plugin) fetchHelm() error {
 	fileLocation := fmt.Sprintf("%s/%s", p.ChartHome, p.ChartName)
 	tempFileLocation := fileLocation + "-temp"
 
+	logger.Printf(fileLocation)
 	err = os.Rename(fileLocation, tempFileLocation)
 	if err != nil {
 		logger.Printf("error renaming: %v to: %v, error: %v\n", fileLocation, tempFileLocation, err)
@@ -207,7 +209,7 @@ func (p *plugin) fetchHelm() error {
 		logger.Printf("error copying directory from: %v, to: %v, error: %v\n", tempFileLocation, p.ChartHome, err)
 		return err
 	}
-
+	logger.Printf(fileLocation)
 	err = os.RemoveAll(tempFileLocation)
 	if err != nil {
 		logger.Printf("error removing: %v, error: %v\n", tempFileLocation, err)
@@ -240,7 +242,11 @@ func (p *plugin) templateHelm() ([]byte, error) {
 	values := fmt.Sprintf("--values=%s", file.Name())
 	name := fmt.Sprintf("--name=%s", p.ReleaseName)
 	nameSpace := fmt.Sprintf("--namespace=%s", p.ReleaseNamespace)
-	helmCmd := exec.Command("helm", "template", home, values, name, nameSpace, p.ChartHome)
+	chart := p.ChartHome
+	if len(p.SubChart) > 0 {
+		chart = p.ChartHome+ "/charts/" + p.SubChart
+	}
+	helmCmd := exec.Command("helm", "template", home, values, name, nameSpace, chart)
 
 	if len(p.ExtraArgs) > 0 && p.ExtraArgs != "null" {
 		helmCmd.Args = append(helmCmd.Args, p.ExtraArgs)
