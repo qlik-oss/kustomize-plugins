@@ -4,22 +4,21 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log"
-
 	"sigs.k8s.io/kustomize/v3/pkg/resource"
+	"sigs.k8s.io/kustomize/v3/pkg/transformers/config"
 	"sigs.k8s.io/kustomize/v3/plugin/builtin"
 
 	"github.com/qlik-oss/kustomize-plugins/kustomize/utils"
 	"sigs.k8s.io/kustomize/v3/pkg/ifc"
 	"sigs.k8s.io/kustomize/v3/pkg/resmap"
 	"sigs.k8s.io/kustomize/v3/pkg/transformers"
-	"sigs.k8s.io/kustomize/v3/pkg/transformers/config"
-
 	"sigs.k8s.io/yaml"
 )
 
 type plugin struct {
-	hasher     ifc.KunstructuredHasher
-	StringData map[string]string `json:"stringData,omitempty" yaml:"stringData,omitempty"`
+	hasher                ifc.KunstructuredHasher
+	StringData            map[string]string `json:"stringData,omitempty" yaml:"stringData,omitempty"`
+	AssumeSecretWillExist bool              `json:"assumeSecretWillExist,omitempty" yaml:"assumeSecretWillExist,omitempty"`
 	builtin.SecretGeneratorPlugin
 }
 
@@ -50,37 +49,88 @@ func (p *plugin) Generate() (resmap.ResMap, error) {
 }
 
 func (p *plugin) Transform(m resmap.ResMap) error {
+	secretResource := p.findSecretByName(p.Name, m)
+	if secretResource != nil {
+		return p.executeBasicSecretTransform(secretResource, m)
+	} else if p.AssumeSecretWillExist && !p.DisableNameSuffixHash && len(p.StringData) > 0 {
+		return p.executeAssumeSecretWillExistTransform(m)
+	}
+	return nil
+}
+
+func (p *plugin) executeAssumeSecretWillExistTransform(m resmap.ResMap) error {
+	generateResourceMap, err := p.Generate()
+	if err != nil {
+		logger.Printf("error generating temp secret: %v, error: %v\n", p.Name, err)
+		return err
+	}
+	secretResource := p.findSecretByName(p.Name, generateResourceMap)
+	if secretResource == nil {
+		err := fmt.Errorf("error locating generated temp secret: %v", p.Name)
+		logger.Printf("%v\n", err)
+		return err
+	}
+	err = m.Append(secretResource)
+	if err != nil {
+		logger.Printf("error appending temp secret: %v to the resource map, error: %v\n", p.Name, err)
+		return err
+	}
+	updatedSecretName, err := p.generateNameWithHash(secretResource)
+	if err != nil {
+		logger.Printf("error hashing secret resource contents for secretName: %v, error: %v\n", p.Name, err)
+		return err
+	}
+	secretResource.SetName(updatedSecretName)
+	err = p.executeNameReferencesTransformer(m)
+	if err != nil {
+		logger.Printf("error executing nameReferenceTransformer.Transform(): %v\n", err)
+		return err
+	}
+	err = m.Remove(secretResource.CurId())
+	if err != nil {
+		logger.Printf("error removing temp secret: %v from the resource map, error: %v\n", p.Name, err)
+		return err
+	}
+	return nil
+}
+
+func (p *plugin) executeBasicSecretTransform(secretResource *resource.Resource, m resmap.ResMap) error {
 	var updatedSecretName string
 	var err error
-
-	for _, res := range m.Resources() {
-		if res.GetKind() == "Secret" && res.GetName() == p.Name {
-			if err := p.appendDataToSecret(res, p.StringData); err != nil {
-				logger.Printf("error appending data to secret with secretName: %v, error: %v\n", p.Name, err)
-				return err
-			}
-			if !p.DisableNameSuffixHash {
-				updatedSecretName, err = p.generateNameWithHash(res)
-				if err != nil {
-					logger.Printf("error hashing secret resource contents for secretName: %v, error: %v\n", p.Name, err)
-					return err
-				}
-				res.SetName(updatedSecretName)
-			}
-			break
-		}
+	if err := p.appendDataToSecret(secretResource, p.StringData); err != nil {
+		logger.Printf("error appending data to secret with secretName: %v, error: %v\n", p.Name, err)
+		return err
 	}
-
+	if !p.DisableNameSuffixHash {
+		updatedSecretName, err = p.generateNameWithHash(secretResource)
+		if err != nil {
+			logger.Printf("error hashing secret resource contents for secretName: %v, error: %v\n", p.Name, err)
+			return err
+		}
+		secretResource.SetName(updatedSecretName)
+	}
 	if len(updatedSecretName) > 0 {
-		defaultTransformerConfig := config.MakeDefaultConfig()
-		nameReferenceTransformer := transformers.NewNameReferenceTransformer(defaultTransformerConfig.NameReference)
-		err := nameReferenceTransformer.Transform(m)
+		err := p.executeNameReferencesTransformer(m)
 		if err != nil {
 			logger.Printf("error executing nameReferenceTransformer.Transform(): %v\n", err)
 			return err
 		}
 	}
+	return nil
+}
 
+func (p *plugin) executeNameReferencesTransformer(m resmap.ResMap) error {
+	defaultTransformerConfig := config.MakeDefaultConfig()
+	nameReferenceTransformer := transformers.NewNameReferenceTransformer(defaultTransformerConfig.NameReference)
+	return nameReferenceTransformer.Transform(m)
+}
+
+func (p *plugin) findSecretByName(name string, m resmap.ResMap) *resource.Resource {
+	for _, res := range m.Resources() {
+		if res.GetKind() == "Secret" && res.GetName() == p.Name {
+			return res
+		}
+	}
 	return nil
 }
 

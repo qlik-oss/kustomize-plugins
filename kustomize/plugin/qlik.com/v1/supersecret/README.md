@@ -1,9 +1,10 @@
 # SuperSecret Kustomize Plugin
 
-## Using as a transformer:
+## Using as a transformer when the target secret exists in the input stream:
 
 When used as a `transformer`, the plugin will optionally append a name suffix hash for the specified secret unless specifically disabled by setting `disableNameSuffixHash: true`.
-It will also optionally append data to the secret from the contents of the `stringData` map. Name suffix hash is calculated after any updates to the secret's data.   
+It will also optionally append data to the secret from the contents of the `stringData` map. Name suffix hash is calculated after any updates to the secret's data. 
+If the name was changed, the references to that name in other resources will be updated.   
 
 Create a layout that looks like this:
 ```text
@@ -78,7 +79,6 @@ Get and build the plugins:
 ```bash
 git clone git@github.com:qlik-oss/kustomize-plugins.git
 pushd kustomize-plugins
-git checkout SecretHashTransformer
 make install
 popd
 ```
@@ -119,6 +119,103 @@ spec:
       - name: foo
         secret:
           secretName: my-secret-b22th6mh4g
+```
+
+## Using as a transformer when the target secret DOES NOT exist in the input stream:
+
+If the target secret resource does not exist in the input stream and `assumeSecretWillExist: true`, 
+then the plugin will attempt to update the references to that name in other resources based on the hash of the data in the `stringData` map. 
+
+Create a layout that looks like this:
+```text
+tree .
+.
+├── deployment.yaml
+├── kustomization.yaml
+├── secretTransformer.yaml
+```
+
+```bash
+cat <<'EOF' >kustomization.yaml
+resources:
+- deployment.yaml
+
+transformers:
+- secretTransformer.yaml
+EOF
+```
+
+```bash
+cat <<'EOF' >deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-deployment
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+      - name: my-pod
+        image: some-image
+        volumeMounts:
+        - name: foo
+          mountPath: "/etc/foo"
+          readOnly: true
+      volumes:
+      - name: foo
+        secret:
+          secretName: my-secret
+EOF
+```
+
+```bash
+cat <<'EOF' >secretTransformer.yaml
+apiVersion: qlik.com/v1
+kind: SuperSecret
+metadata:
+  name: my-secret
+stringData:
+  foo: bar
+  baz: whatever
+assumeSecretWillExist: true
+EOF
+```
+
+Get and build the plugins:
+```bash
+git clone git@github.com:qlik-oss/kustomize-plugins.git
+pushd kustomize-plugins
+make install
+popd
+```
+
+Then run `kustomize` on the directory:
+```bash
+XDG_CONFIG_HOME=kustomize-plugins $HOME/go/bin/kustomize build --enable_alpha_plugins .
+```
+
+The output will look like so:
+```text
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-deployment
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+      - image: some-image
+        name: my-pod
+        volumeMounts:
+        - mountPath: /etc/foo
+          name: foo
+          readOnly: true
+      volumes:
+      - name: foo
+        secret:
+          secretName: my-secret-k8gb8gd84f
 ```
 
 ## Using as a generator:
@@ -186,7 +283,6 @@ Get and build the plugins:
 ```bash
 git clone git@github.com:qlik-oss/kustomize-plugins.git
 pushd kustomize-plugins
-git checkout SecretHashTransformer
 make install
 popd
 ```
