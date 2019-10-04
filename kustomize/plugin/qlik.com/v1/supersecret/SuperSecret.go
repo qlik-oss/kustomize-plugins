@@ -52,7 +52,7 @@ func (p *plugin) Transform(m resmap.ResMap) error {
 	secretResource := p.findSecretByName(p.Name, m)
 	if secretResource != nil {
 		return p.executeBasicSecretTransform(secretResource, m)
-	} else if p.AssumeSecretWillExist && !p.DisableNameSuffixHash {
+	} else if p.AssumeSecretWillExist && !p.DisableNameSuffixHash && len(p.StringData) > 0 {
 		return p.executeAssumeSecretWillExistTransform(m)
 	}
 	return nil
