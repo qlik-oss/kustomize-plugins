@@ -288,6 +288,103 @@ stringData:
 	}
 }
 
+func TestSuperSecret_assumeSecretWillExistTransformer(t *testing.T) {
+	pluginInputResources := `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myDeployment
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+      - name: myPod
+        image: some-image
+        volumeMounts:
+        - name: foo
+          mountPath: "/etc/foo"
+          readOnly: true
+      volumes:
+      - name: foo
+        secret:
+          secretName: mySecret
+`
+	testCases := []struct {
+		name                 string
+		pluginConfig         string
+		pluginInputResources string
+		checkAssertions      func(*testing.T, resmap.ResMap)
+	}{
+		{
+			name: "withHash_withStringData",
+			pluginConfig: `
+apiVersion: qlik.com/v1
+kind: SuperSecret
+metadata:
+  name: mySecret
+stringData:
+  foo: bar
+  baz: whatever
+assumeSecretWillExist: true
+`,
+			pluginInputResources: pluginInputResources,
+			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
+				for _, res := range resMap.Resources() {
+					if res.GetKind() == "Secret" {
+						assert.FailNow(t, "secret should not be present in the stream")
+						break
+					}
+				}
+
+				foundDeployment := false
+				for _, res := range resMap.Resources() {
+					if res.GetKind() == "Deployment" {
+						foundDeployment = true
+
+						value, err := res.GetFieldValue("spec.template.spec.volumes[0].secret.secretName")
+						assert.NoError(t, err)
+
+						match, err := regexp.MatchString("^mySecret-[0-9a-z]+$", value.(string))
+						assert.NoError(t, err)
+						assert.True(t, match)
+
+						break
+					}
+				}
+				assert.True(t, foundDeployment)
+			},
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			resourceFactory := resmap.NewFactory(resource.NewFactory(
+				kunstruct.NewKunstructuredFactoryImpl()), transformer.NewFactoryImpl())
+
+			resMap, err := resourceFactory.NewResMapFromBytes([]byte(testCase.pluginInputResources))
+			if err != nil {
+				t.Fatalf("Err: %v", err)
+			}
+
+			err = KustomizePlugin.Config(utils.NewFakeLoader("/"), resourceFactory, []byte(testCase.pluginConfig))
+			if err != nil {
+				t.Fatalf("Err: %v", err)
+			}
+
+			err = KustomizePlugin.Transform(resMap)
+			if err != nil {
+				t.Fatalf("Err: %v", err)
+			}
+
+			for _, res := range resMap.Resources() {
+				fmt.Printf("--res: %v\n", res.String())
+			}
+
+			testCase.checkAssertions(t, resMap)
+		})
+	}
+}
+
 func TestSuperSecret_generator(t *testing.T) {
 	testCases := []struct {
 		name                 string

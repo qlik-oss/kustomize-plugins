@@ -78,7 +78,6 @@ Get and build the plugins:
 ```bash
 git clone git@github.com:qlik-oss/kustomize-plugins.git
 pushd kustomize-plugins
-git checkout SecretHashTransformer
 make install
 popd
 ```
@@ -186,7 +185,6 @@ Get and build the plugins:
 ```bash
 git clone git@github.com:qlik-oss/kustomize-plugins.git
 pushd kustomize-plugins
-git checkout SecretHashTransformer
 make install
 popd
 ```
