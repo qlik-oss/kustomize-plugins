@@ -3,9 +3,10 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
-	"github.com/qlik-oss/kustomize-plugins/kustomize/utils"
 	"regexp"
 	"testing"
+
+	"github.com/qlik-oss/kustomize-plugins/kustomize/utils"
 
 	"github.com/stretchr/testify/assert"
 	"sigs.k8s.io/kustomize/v3/k8sdeps/kunstruct"
@@ -288,7 +289,7 @@ stringData:
 	}
 }
 
-func TestSuperSecret_assumeSecretWillExistTransformer(t *testing.T) {
+func TestSuperSecret_assumeTargetWillExistTransformer(t *testing.T) {
 	pluginInputResources := `
 apiVersion: apps/v1
 kind: Deployment
@@ -337,7 +338,7 @@ spec:
 		checkAssertions      func(*testing.T, resmap.ResMap)
 	}{
 		{
-			name: "withHash_withStringData",
+			name: "assumeTargetWillExist_isTrue_byDefault",
 			pluginConfig: `
 apiVersion: qlik.com/v1
 kind: SuperSecret
@@ -346,7 +347,6 @@ metadata:
 stringData:
  foo: bar
  baz: whatever
-assumeSecretWillExist: true
 `,
 			pluginInputResources: pluginInputResources,
 			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
@@ -357,8 +357,91 @@ assumeSecretWillExist: true
 					}
 				}
 
-				foundDeployments := map[string]bool {"myDeployment1" : false, "myDeployment2": false}
-				for _, deploymentName := range []string {"myDeployment1", "myDeployment2"} {
+				foundDeployments := map[string]bool{"myDeployment1": false, "myDeployment2": false}
+				for _, deploymentName := range []string{"myDeployment1", "myDeployment2"} {
+					for _, res := range resMap.Resources() {
+						if res.GetKind() == "Deployment" && res.GetName() == deploymentName {
+							foundDeployments[deploymentName] = true
+
+							value, err := res.GetFieldValue("spec.template.spec.volumes[0].secret.secretName")
+							assert.NoError(t, err)
+
+							match, err := regexp.MatchString("^mySecret-[0-9a-z]+$", value.(string))
+							assert.NoError(t, err)
+							assert.True(t, match)
+
+							break
+						}
+					}
+				}
+				for deploymentName := range foundDeployments {
+					assert.True(t, foundDeployments[deploymentName])
+				}
+			},
+		},
+		{
+			name: "assumeTargetWillExist_canBeTurnedOff",
+			pluginConfig: `
+apiVersion: qlik.com/v1
+kind: SuperSecret
+metadata:
+ name: mySecret
+stringData:
+ foo: bar
+ baz: whatever
+assumeTargetWillExist: false
+`,
+			pluginInputResources: pluginInputResources,
+			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
+				for _, res := range resMap.Resources() {
+					if res.GetKind() == "Secret" {
+						assert.FailNow(t, "secret should not be present in the stream")
+						break
+					}
+				}
+
+				foundDeployments := map[string]bool{"myDeployment1": false, "myDeployment2": false}
+				for _, deploymentName := range []string{"myDeployment1", "myDeployment2"} {
+					for _, res := range resMap.Resources() {
+						if res.GetKind() == "Deployment" && res.GetName() == deploymentName {
+							foundDeployments[deploymentName] = true
+
+							value, err := res.GetFieldValue("spec.template.spec.volumes[0].secret.secretName")
+							assert.NoError(t, err)
+							assert.Equal(t, "mySecret", value)
+
+							break
+						}
+					}
+				}
+				for deploymentName := range foundDeployments {
+					assert.True(t, foundDeployments[deploymentName])
+				}
+			},
+		},
+		{
+			name: "withHash_withStringData",
+			pluginConfig: `
+apiVersion: qlik.com/v1
+kind: SuperSecret
+metadata:
+ name: mySecret
+stringData:
+ foo: bar
+ baz: whatever
+assumeTargetWillExist: true
+`,
+			pluginInputResources: pluginInputResources,
+			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
+				for _, res := range resMap.Resources() {
+					if res.GetKind() == "Secret" {
+						assert.FailNow(t, "secret should not be present in the stream")
+						break
+					}
+				}
+
+				foundDeployments := map[string]bool{"myDeployment1": false, "myDeployment2": false}
+				for _, deploymentName := range []string{"myDeployment1", "myDeployment2"} {
 					for _, res := range resMap.Resources() {
 						if res.GetKind() == "Deployment" && res.GetName() == deploymentName {
 							foundDeployments[deploymentName] = true
@@ -389,7 +472,7 @@ metadata:
 stringData:
  foo: bar
  baz: whatever
-assumeSecretWillExist: true
+assumeTargetWillExist: true
 disableNameSuffixHash: true
 `,
 			pluginInputResources: pluginInputResources,
@@ -401,8 +484,8 @@ disableNameSuffixHash: true
 					}
 				}
 
-				foundDeployments := map[string]bool {"myDeployment1" : false, "myDeployment2": false}
-				for _, deploymentName := range []string {"myDeployment1", "myDeployment2"} {
+				foundDeployments := map[string]bool{"myDeployment1": false, "myDeployment2": false}
+				for _, deploymentName := range []string{"myDeployment1", "myDeployment2"} {
 					for _, res := range resMap.Resources() {
 						if res.GetKind() == "Deployment" && res.GetName() == deploymentName {
 							foundDeployments[deploymentName] = true
@@ -427,7 +510,7 @@ apiVersion: qlik.com/v1
 kind: SuperSecret
 metadata:
   name: mySecret
-assumeSecretWillExist: true
+assumeTargetWillExist: true
 `,
 			pluginInputResources: pluginInputResources,
 			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
@@ -438,8 +521,8 @@ assumeSecretWillExist: true
 					}
 				}
 
-				foundDeployments := map[string]bool {"myDeployment1" : false, "myDeployment2": false}
-				for _, deploymentName := range []string {"myDeployment1", "myDeployment2"} {
+				foundDeployments := map[string]bool{"myDeployment1": false, "myDeployment2": false}
+				for _, deploymentName := range []string{"myDeployment1", "myDeployment2"} {
 					for _, res := range resMap.Resources() {
 						if res.GetKind() == "Deployment" && res.GetName() == deploymentName {
 							foundDeployments[deploymentName] = true
