@@ -52,13 +52,17 @@ func (p *plugin) Transform(m resmap.ResMap) error {
 	secretResource := p.findSecretByName(p.Name, m)
 	if secretResource != nil {
 		return p.executeBasicSecretTransform(secretResource, m)
-	} else if p.AssumeSecretWillExist && !p.DisableNameSuffixHash && len(p.StringData) > 0 {
+	} else if p.AssumeSecretWillExist && !p.DisableNameSuffixHash {
 		return p.executeAssumeSecretWillExistTransform(m)
+	} else {
+		logger.Printf("NOT executing anything because secret: %v is NOT in the input stream and assumeSecretWillExist: %v, disableNameSuffixHash: %v\n", p.Name, p.AssumeSecretWillExist, p.DisableNameSuffixHash)
 	}
 	return nil
 }
 
 func (p *plugin) executeAssumeSecretWillExistTransform(m resmap.ResMap) error {
+	logger.Printf("executeAssumeSecretWillExistTransform() for imaginary secret name: %v\n", p.Name)
+
 	generateResourceMap, err := p.Generate()
 	if err != nil {
 		logger.Printf("error generating temp secret: %v, error: %v\n", p.Name, err)
@@ -95,6 +99,8 @@ func (p *plugin) executeAssumeSecretWillExistTransform(m resmap.ResMap) error {
 }
 
 func (p *plugin) executeBasicSecretTransform(secretResource *resource.Resource, m resmap.ResMap) error {
+	logger.Printf("executeBasicSecretTransform() for secret: %v...\n", secretResource)
+
 	var updatedSecretName string
 	var err error
 	if err := p.appendDataToSecret(secretResource, p.StringData); err != nil {
@@ -127,7 +133,7 @@ func (p *plugin) executeNameReferencesTransformer(m resmap.ResMap) error {
 
 func (p *plugin) findSecretByName(name string, m resmap.ResMap) *resource.Resource {
 	for _, res := range m.Resources() {
-		if res.GetKind() == "Secret" && res.GetName() == p.Name {
+		if res.GetKind() == "Secret" && res.GetOriginalName() == p.Name {
 			return res
 		}
 	}
