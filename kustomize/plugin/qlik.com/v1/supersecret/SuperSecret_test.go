@@ -421,7 +421,7 @@ disableNameSuffixHash: true
 			},
 		},
 		{
-			name: "doesNothing_withoutStringData",
+			name: "appendNameSuffixHash_forEmptyStringData",
 			pluginConfig: `
 apiVersion: qlik.com/v1
 kind: SuperSecret
@@ -446,7 +446,10 @@ assumeSecretWillExist: true
 
 							value, err := res.GetFieldValue("spec.template.spec.volumes[0].secret.secretName")
 							assert.NoError(t, err)
-							assert.Equal(t, "mySecret", value)
+
+							match, err := regexp.MatchString("^mySecret-[0-9a-z]+$", value.(string))
+							assert.NoError(t, err)
+							assert.True(t, match)
 
 							break
 						}
