@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
-	"github.com/qlik-oss/kustomize-plugins/kustomize/utils"
+	"github.com/qlik-oss/kustomize-plugins/kustomize/utils/loadertest"
 	"regexp"
 	"testing"
 
@@ -269,7 +269,7 @@ stringData:
 				t.Fatalf("Err: %v", err)
 			}
 
-			err = KustomizePlugin.Config(utils.NewFakeLoader("/"), resourceFactory, []byte(testCase.pluginConfig))
+			err = KustomizePlugin.Config(loadertest.NewFakeLoader("/"), resourceFactory, []byte(testCase.pluginConfig))
 			if err != nil {
 				t.Fatalf("Err: %v", err)
 			}
@@ -468,7 +468,7 @@ assumeSecretWillExist: true
 				t.Fatalf("Err: %v", err)
 			}
 
-			err = KustomizePlugin.Config(utils.NewFakeLoader("/"), resourceFactory, []byte(testCase.pluginConfig))
+			err = KustomizePlugin.Config(loadertest.NewFakeLoader("/"), resourceFactory, []byte(testCase.pluginConfig))
 			if err != nil {
 				t.Fatalf("Err: %v", err)
 			}
@@ -632,7 +632,7 @@ behavior: create
 			resourceFactory := resmap.NewFactory(resource.NewFactory(
 				kunstruct.NewKunstructuredFactoryImpl()), transformer.NewFactoryImpl())
 
-			err := KustomizePlugin.Config(utils.NewFakeLoader("/"), resourceFactory, []byte(testCase.pluginConfig))
+			err := KustomizePlugin.Config(loadertest.NewFakeLoader("/"), resourceFactory, []byte(testCase.pluginConfig))
 			if err != nil {
 				t.Fatalf("Err: %v", err)
 			}
