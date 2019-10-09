@@ -52,7 +52,7 @@ spec:
 		checkAssertions      func(*testing.T, resmap.ResMap)
 	}{
 		{
-			name: "withoutHash_withoutStringData",
+			name: "withoutHash_withoutAppendData",
 			pluginConfig: `
 apiVersion: qlik.com/v1
 kind: SuperSecret
@@ -97,7 +97,7 @@ disableNameSuffixHash: true
 			},
 		},
 		{
-			name: "withoutHash_withStringData",
+			name: "withoutHash_withAppendData",
 			pluginConfig: `
 apiVersion: qlik.com/v1
 kind: SuperSecret
@@ -153,7 +153,7 @@ disableNameSuffixHash: true
 			},
 		},
 		{
-			name: "withHash_withoutStringData",
+			name: "withHash_withoutAppendData",
 			pluginConfig: `
 apiVersion: qlik.com/v1
 kind: SuperSecret
@@ -201,7 +201,7 @@ metadata:
 			},
 		},
 		{
-			name: "withHash_withStringData",
+			name: "withHash_withAppendData",
 			pluginConfig: `
 apiVersion: qlik.com/v1
 kind: SuperSecret
@@ -420,7 +420,7 @@ assumeTargetWillExist: false
 			},
 		},
 		{
-			name: "withHash_withStringData",
+			name: "withHash_withAppendData",
 			pluginConfig: `
 apiVersion: qlik.com/v1
 kind: SuperSecret
@@ -504,7 +504,7 @@ disableNameSuffixHash: true
 			},
 		},
 		{
-			name: "appendNameSuffixHash_forEmptyStringData",
+			name: "appendNameSuffixHash_forEmptyData",
 			pluginConfig: `
 apiVersion: qlik.com/v1
 kind: SuperSecret
