@@ -331,6 +331,63 @@ spec:
         secret:
           secretName: mySecret
 `
+	assertReferencesUpdatedWithHashes := func(t *testing.T, resMap resmap.ResMap) {
+		for _, res := range resMap.Resources() {
+			if res.GetKind() == "Secret" {
+				assert.FailNow(t, "secret should not be present in the stream")
+				break
+			}
+		}
+
+		foundDeployments := map[string]bool{"myDeployment1": false, "myDeployment2": false}
+		for _, deploymentName := range []string{"myDeployment1", "myDeployment2"} {
+			for _, res := range resMap.Resources() {
+				if res.GetKind() == "Deployment" && res.GetName() == deploymentName {
+					foundDeployments[deploymentName] = true
+
+					value, err := res.GetFieldValue("spec.template.spec.volumes[0].secret.secretName")
+					assert.NoError(t, err)
+
+					match, err := regexp.MatchString("^mySecret-[0-9a-z]+$", value.(string))
+					assert.NoError(t, err)
+					assert.True(t, match)
+
+					break
+				}
+			}
+		}
+		for deploymentName := range foundDeployments {
+			assert.True(t, foundDeployments[deploymentName])
+		}
+	}
+
+	assertReferencesNotUpdated := func(t *testing.T, resMap resmap.ResMap) {
+		for _, res := range resMap.Resources() {
+			if res.GetKind() == "Secret" {
+				assert.FailNow(t, "secret should not be present in the stream")
+				break
+			}
+		}
+
+		foundDeployments := map[string]bool{"myDeployment1": false, "myDeployment2": false}
+		for _, deploymentName := range []string{"myDeployment1", "myDeployment2"} {
+			for _, res := range resMap.Resources() {
+				if res.GetKind() == "Deployment" && res.GetName() == deploymentName {
+					foundDeployments[deploymentName] = true
+
+					value, err := res.GetFieldValue("spec.template.spec.volumes[0].secret.secretName")
+					assert.NoError(t, err)
+					assert.Equal(t, "mySecret", value)
+
+					break
+				}
+			}
+		}
+		for deploymentName := range foundDeployments {
+			assert.True(t, foundDeployments[deploymentName])
+		}
+	}
+
 	testCases := []struct {
 		name                 string
 		pluginConfig         string
@@ -349,35 +406,7 @@ stringData:
  baz: whatever
 `,
 			pluginInputResources: pluginInputResources,
-			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
-				for _, res := range resMap.Resources() {
-					if res.GetKind() == "Secret" {
-						assert.FailNow(t, "secret should not be present in the stream")
-						break
-					}
-				}
-
-				foundDeployments := map[string]bool{"myDeployment1": false, "myDeployment2": false}
-				for _, deploymentName := range []string{"myDeployment1", "myDeployment2"} {
-					for _, res := range resMap.Resources() {
-						if res.GetKind() == "Deployment" && res.GetName() == deploymentName {
-							foundDeployments[deploymentName] = true
-
-							value, err := res.GetFieldValue("spec.template.spec.volumes[0].secret.secretName")
-							assert.NoError(t, err)
-
-							match, err := regexp.MatchString("^mySecret-[0-9a-z]+$", value.(string))
-							assert.NoError(t, err)
-							assert.True(t, match)
-
-							break
-						}
-					}
-				}
-				for deploymentName := range foundDeployments {
-					assert.True(t, foundDeployments[deploymentName])
-				}
-			},
+			checkAssertions: assertReferencesUpdatedWithHashes,
 		},
 		{
 			name: "assumeTargetWillExist_canBeTurnedOff",
@@ -392,32 +421,7 @@ stringData:
 assumeTargetWillExist: false
 `,
 			pluginInputResources: pluginInputResources,
-			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
-				for _, res := range resMap.Resources() {
-					if res.GetKind() == "Secret" {
-						assert.FailNow(t, "secret should not be present in the stream")
-						break
-					}
-				}
-
-				foundDeployments := map[string]bool{"myDeployment1": false, "myDeployment2": false}
-				for _, deploymentName := range []string{"myDeployment1", "myDeployment2"} {
-					for _, res := range resMap.Resources() {
-						if res.GetKind() == "Deployment" && res.GetName() == deploymentName {
-							foundDeployments[deploymentName] = true
-
-							value, err := res.GetFieldValue("spec.template.spec.volumes[0].secret.secretName")
-							assert.NoError(t, err)
-							assert.Equal(t, "mySecret", value)
-
-							break
-						}
-					}
-				}
-				for deploymentName := range foundDeployments {
-					assert.True(t, foundDeployments[deploymentName])
-				}
-			},
+			checkAssertions: assertReferencesNotUpdated,
 		},
 		{
 			name: "withHash_withAppendData",
@@ -432,35 +436,7 @@ stringData:
 assumeTargetWillExist: true
 `,
 			pluginInputResources: pluginInputResources,
-			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
-				for _, res := range resMap.Resources() {
-					if res.GetKind() == "Secret" {
-						assert.FailNow(t, "secret should not be present in the stream")
-						break
-					}
-				}
-
-				foundDeployments := map[string]bool{"myDeployment1": false, "myDeployment2": false}
-				for _, deploymentName := range []string{"myDeployment1", "myDeployment2"} {
-					for _, res := range resMap.Resources() {
-						if res.GetKind() == "Deployment" && res.GetName() == deploymentName {
-							foundDeployments[deploymentName] = true
-
-							value, err := res.GetFieldValue("spec.template.spec.volumes[0].secret.secretName")
-							assert.NoError(t, err)
-
-							match, err := regexp.MatchString("^mySecret-[0-9a-z]+$", value.(string))
-							assert.NoError(t, err)
-							assert.True(t, match)
-
-							break
-						}
-					}
-				}
-				for deploymentName := range foundDeployments {
-					assert.True(t, foundDeployments[deploymentName])
-				}
-			},
+			checkAssertions: assertReferencesUpdatedWithHashes,
 		},
 		{
 			name: "doesNothing_withoutHash",
@@ -476,32 +452,7 @@ assumeTargetWillExist: true
 disableNameSuffixHash: true
 `,
 			pluginInputResources: pluginInputResources,
-			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
-				for _, res := range resMap.Resources() {
-					if res.GetKind() == "Secret" {
-						assert.FailNow(t, "secret should not be present in the stream")
-						break
-					}
-				}
-
-				foundDeployments := map[string]bool{"myDeployment1": false, "myDeployment2": false}
-				for _, deploymentName := range []string{"myDeployment1", "myDeployment2"} {
-					for _, res := range resMap.Resources() {
-						if res.GetKind() == "Deployment" && res.GetName() == deploymentName {
-							foundDeployments[deploymentName] = true
-
-							value, err := res.GetFieldValue("spec.template.spec.volumes[0].secret.secretName")
-							assert.NoError(t, err)
-							assert.Equal(t, "mySecret", value)
-
-							break
-						}
-					}
-				}
-				for deploymentName := range foundDeployments {
-					assert.True(t, foundDeployments[deploymentName])
-				}
-			},
+			checkAssertions: assertReferencesNotUpdated,
 		},
 		{
 			name: "appendNameSuffixHash_forEmptyData",
@@ -513,35 +464,7 @@ metadata:
 assumeTargetWillExist: true
 `,
 			pluginInputResources: pluginInputResources,
-			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
-				for _, res := range resMap.Resources() {
-					if res.GetKind() == "Secret" {
-						assert.FailNow(t, "secret should not be present in the stream")
-						break
-					}
-				}
-
-				foundDeployments := map[string]bool{"myDeployment1": false, "myDeployment2": false}
-				for _, deploymentName := range []string{"myDeployment1", "myDeployment2"} {
-					for _, res := range resMap.Resources() {
-						if res.GetKind() == "Deployment" && res.GetName() == deploymentName {
-							foundDeployments[deploymentName] = true
-
-							value, err := res.GetFieldValue("spec.template.spec.volumes[0].secret.secretName")
-							assert.NoError(t, err)
-
-							match, err := regexp.MatchString("^mySecret-[0-9a-z]+$", value.(string))
-							assert.NoError(t, err)
-							assert.True(t, match)
-
-							break
-						}
-					}
-				}
-				for deploymentName := range foundDeployments {
-					assert.True(t, foundDeployments[deploymentName])
-				}
-			},
+			checkAssertions: assertReferencesUpdatedWithHashes,
 		},
 	}
 	for _, testCase := range testCases {

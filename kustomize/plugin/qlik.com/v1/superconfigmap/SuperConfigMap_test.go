@@ -46,7 +46,7 @@ spec:
 		checkAssertions      func(*testing.T, resmap.ResMap)
 	}{
 		{
-			name: "withoutHash_withoutData",
+			name: "withoutHash_withoutAppendData",
 			pluginConfig: `
 apiVersion: qlik.com/v1
 kind: SuperConfigMap
@@ -91,7 +91,7 @@ disableNameSuffixHash: true
 			},
 		},
 		{
-			name: "withoutHash_withData",
+			name: "withoutHash_withAppendData",
 			pluginConfig: `
 apiVersion: qlik.com/v1
 kind: SuperConfigMap
@@ -147,12 +147,12 @@ disableNameSuffixHash: true
 			},
 		},
 		{
-			name: "withHash_withoutData",
+			name: "withHash_withoutAppendData",
 			pluginConfig: `
 apiVersion: qlik.com/v1
 kind: SuperConfigMap
 metadata:
- name: my-config-map
+  name: my-config-map
 `,
 			pluginInputResources: pluginInputResources,
 			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
@@ -196,65 +196,273 @@ metadata:
 				assert.True(t, foundDeploymentResource)
 			},
 		},
-//		{
-//			name: "withHash_withData",
-//			pluginConfig: `
-//apiVersion: qlik.com/v1
-//kind: SuperSecret
-//metadata:
-// name: mySecret
-//stringData:
-// foo: bar
-// baz: whatever
-//`,
-//			pluginInputResources: pluginInputResources,
-//			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
-//				newSecretName := ""
-//				for _, res := range resMap.Resources() {
-//					if res.GetKind() == "Secret" {
-//						newSecretName = res.GetName()
-//
-//						match, err := regexp.MatchString("^mySecret-[0-9a-z]+$", newSecretName)
-//						assert.NoError(t, err)
-//						assert.True(t, match)
-//
-//						data, err := res.GetFieldValue("data")
-//						assert.NoError(t, err)
-//						assert.True(t, len(data.(map[string]interface{})) == 3)
-//
-//						value, err := res.GetFieldValue("data.PASSWORD")
-//						assert.NoError(t, err)
-//						assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("whatever")), value)
-//
-//						value, err = res.GetFieldValue("data.foo")
-//						assert.NoError(t, err)
-//						assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("bar")), value)
-//
-//						value, err = res.GetFieldValue("data.baz")
-//						assert.NoError(t, err)
-//						assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("whatever")), value)
-//
-//						break
-//					}
-//				}
-//				assert.True(t, len(newSecretName) > 0)
-//
-//				foundDeploymentResource := false
-//				for _, res := range resMap.Resources() {
-//					if res.GetKind() == "Deployment" {
-//						foundDeploymentResource = true
-//
-//						value, err := res.GetFieldValue("spec.template.spec.volumes[0].secret.secretName")
-//						assert.NoError(t, err)
-//						assert.Equal(t, newSecretName, value)
-//
-//						break
-//					}
-//				}
-//
-//				assert.True(t, foundDeploymentResource)
-//			},
-//		},
+		{
+			name: "withHash_withAppendData",
+			pluginConfig: `
+apiVersion: qlik.com/v1
+kind: SuperConfigMap
+metadata:
+  name: my-config-map
+data:
+  baz: boo
+  abra: cadabra
+`,
+			pluginInputResources: pluginInputResources,
+			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
+				newConfigMapName := ""
+				foundConfigMapResource := false
+				for _, res := range resMap.Resources() {
+					if res.GetKind() == "ConfigMap" {
+						foundConfigMapResource = true
+						newConfigMapName = res.GetName()
+
+						match, err := regexp.MatchString("^my-config-map-[0-9a-z]+$", newConfigMapName)
+						assert.NoError(t, err)
+						assert.True(t, match)
+
+						data, err := res.GetFieldValue("data")
+						assert.NoError(t, err)
+						assert.True(t, len(data.(map[string]interface{})) == 3)
+
+						value, err := res.GetFieldValue("data.foo")
+						assert.NoError(t, err)
+						assert.Equal(t, "bar", value)
+
+						value, err = res.GetFieldValue("data.baz")
+						assert.NoError(t, err)
+						assert.Equal(t, "boo", value)
+
+						value, err = res.GetFieldValue("data.abra")
+						assert.NoError(t, err)
+						assert.Equal(t, "cadabra", value)
+
+						break
+					}
+				}
+				assert.True(t, foundConfigMapResource)
+				assert.True(t, len(newConfigMapName) > 0)
+
+				foundDeploymentResource := false
+				for _, res := range resMap.Resources() {
+					if res.GetKind() == "Deployment" {
+						foundDeploymentResource = true
+
+						value, err := res.GetFieldValue("spec.template.spec.containers[0].env[0].valueFrom.configMapKeyRef.name")
+						assert.NoError(t, err)
+						assert.Equal(t, newConfigMapName, value)
+
+						break
+					}
+				}
+				assert.True(t, foundDeploymentResource)
+			},
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			resourceFactory := resmap.NewFactory(resource.NewFactory(
+				kunstruct.NewKunstructuredFactoryImpl()), transformer.NewFactoryImpl())
+
+			resMap, err := resourceFactory.NewResMapFromBytes([]byte(testCase.pluginInputResources))
+			if err != nil {
+				t.Fatalf("Err: %v", err)
+			}
+
+			err = KustomizePlugin.Config(utils.NewFakeLoader("/"), resourceFactory, []byte(testCase.pluginConfig))
+			if err != nil {
+				t.Fatalf("Err: %v", err)
+			}
+
+			err = KustomizePlugin.Transform(resMap)
+			if err != nil {
+				t.Fatalf("Err: %v", err)
+			}
+
+			for _, res := range resMap.Resources() {
+				fmt.Printf("--res: %v\n", res.String())
+			}
+
+			testCase.checkAssertions(t, resMap)
+		})
+	}
+}
+
+func TestSuperConfigMap_assumeTargetWillExistTransformer(t *testing.T) {
+	pluginInputResources := `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-deployment-1
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+      - name: my-container
+        image: some-image
+        env:
+        - name: FOO
+          valueFrom:
+            configMapKeyRef:
+              name: my-config-map
+              key: foo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-deployment-2
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+      - name: my-container-2
+        image: some-image
+        env:
+        - name: FOO
+          valueFrom:
+            configMapKeyRef:
+              name: my-config-map
+              key: foo
+`
+	assertReferencesUpdatedWithHashes := func(t *testing.T, resMap resmap.ResMap) {
+		for _, res := range resMap.Resources() {
+			if res.GetKind() == "ConfigMap" {
+				assert.FailNow(t, "configMap should not be present in the stream")
+				break
+			}
+		}
+
+		foundDeployments := map[string]bool{"my-deployment-1": false, "my-deployment-2": false}
+		for _, deploymentName := range []string{"my-deployment-1", "my-deployment-2"} {
+			for _, res := range resMap.Resources() {
+				if res.GetKind() == "Deployment" && res.GetName() == deploymentName {
+					foundDeployments[deploymentName] = true
+
+					value, err := res.GetFieldValue("spec.template.spec.containers[0].env[0].valueFrom.configMapKeyRef.name")
+					assert.NoError(t, err)
+
+					match, err := regexp.MatchString("^my-config-map-[0-9a-z]+$", value.(string))
+					assert.NoError(t, err)
+					assert.True(t, match)
+
+					break
+				}
+			}
+		}
+		for deploymentName := range foundDeployments {
+			assert.True(t, foundDeployments[deploymentName])
+		}
+	}
+
+
+	assertReferencesNotUpdated := func(t *testing.T, resMap resmap.ResMap) {
+		for _, res := range resMap.Resources() {
+			if res.GetKind() == "ConfigMap" {
+				assert.FailNow(t, "configMap should not be present in the stream")
+				break
+			}
+		}
+
+		foundDeployments := map[string]bool{"my-deployment-1": false, "my-deployment-2": false}
+		for _, deploymentName := range []string{"my-deployment-1", "my-deployment-2"} {
+			for _, res := range resMap.Resources() {
+				if res.GetKind() == "Deployment" && res.GetName() == deploymentName {
+					foundDeployments[deploymentName] = true
+
+					value, err := res.GetFieldValue("spec.template.spec.containers[0].env[0].valueFrom.configMapKeyRef.name")
+					assert.NoError(t, err)
+
+					assert.NoError(t, err)
+					assert.Equal(t, "my-config-map", value)
+
+					break
+				}
+			}
+		}
+		for deploymentName := range foundDeployments {
+			assert.True(t, foundDeployments[deploymentName])
+		}
+	}
+
+	testCases := []struct {
+		name                 string
+		pluginConfig         string
+		pluginInputResources string
+		checkAssertions      func(*testing.T, resmap.ResMap)
+	}{
+		{
+			name: "assumeTargetWillExist_isTrue_byDefault",
+			pluginConfig: `
+apiVersion: qlik.com/v1
+kind: SuperConfigMap
+metadata:
+ name: my-config-map
+data:
+ foo: bar
+ baz: boo
+`,
+			pluginInputResources: pluginInputResources,
+			checkAssertions: assertReferencesUpdatedWithHashes,
+		},
+		{
+			name: "assumeTargetWillExist_canBeTurnedOff",
+			pluginConfig: `
+apiVersion: qlik.com/v1
+kind: SuperConfigMap
+metadata:
+  name: my-config-map
+data:
+  foo: bar
+  baz: boo
+assumeTargetWillExist: false
+`,
+			pluginInputResources: pluginInputResources,
+			checkAssertions: assertReferencesNotUpdated,
+		},
+		{
+			name: "withHash_withAppendData",
+			pluginConfig: `
+apiVersion: qlik.com/v1
+kind: SuperConfigMap
+metadata:
+  name: my-config-map
+data:
+  foo: bar
+  baz: boo
+assumeTargetWillExist: true
+`,
+			pluginInputResources: pluginInputResources,
+			checkAssertions: assertReferencesUpdatedWithHashes,
+		},
+		{
+			name: "doesNothing_withoutHash",
+			pluginConfig: `
+apiVersion: qlik.com/v1
+kind: SuperConfigMap
+metadata:
+  name: my-config-map
+data:
+  foo: bar
+  baz: boo
+assumeTargetWillExist: true
+disableNameSuffixHash: true
+`,
+			pluginInputResources: pluginInputResources,
+			checkAssertions: assertReferencesNotUpdated,
+		},
+		{
+			name: "appendNameSuffixHash_forEmptyData",
+			pluginConfig: `
+apiVersion: qlik.com/v1
+kind: SuperConfigMap
+metadata:
+ name: my-config-map
+assumeTargetWillExist: true
+`,
+			pluginInputResources: pluginInputResources,
+			checkAssertions: assertReferencesUpdatedWithHashes,
+		},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -293,7 +501,7 @@ func TestSuperConfigMap_generator(t *testing.T) {
 		checkAssertions      func(*testing.T, resmap.ResMap)
 	}{
 		{
-			name: "withoutHash_withoutStringData",
+			name: "withoutHash_withoutData",
 			pluginConfig: `
 apiVersion: qlik.com/v1
 kind: SuperConfigMap
@@ -321,7 +529,7 @@ disableNameSuffixHash: true
 			},
 		},
 		{
-			name: "withoutHash_withStringData",
+			name: "withoutHash_withData",
 			pluginConfig: `
 apiVersion: qlik.com/v1
 kind: SuperConfigMap
@@ -360,7 +568,7 @@ disableNameSuffixHash: true
 			},
 		},
 		{
-			name: "withHash_withoutStringData",
+			name: "withHash_withoutData",
 			pluginConfig: `
 apiVersion: qlik.com/v1
 kind: SuperConfigMap
