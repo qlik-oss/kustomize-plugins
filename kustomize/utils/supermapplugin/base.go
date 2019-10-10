@@ -22,6 +22,7 @@ type IDecorator interface {
 	GetAssumeTargetWillExist() bool
 	GetDisableNameSuffixHash() bool
 	Generate() (resmap.ResMap, error)
+	GetPrefix() string
 }
 
 type Base struct {
@@ -64,6 +65,10 @@ func (b *Base) executeAssumeWillExistTransform(m resmap.ResMap) error {
 	if err != nil {
 		b.Decorator.GetLogger().Printf("error hashing resource: %v, error: %v\n", b.Decorator.GetName(), err)
 		return err
+	}
+	prefix := b.Decorator.GetPrefix()
+	if  len(prefix) > 0 {
+		updatedName = b.Decorator.GetPrefix() + updatedName
 	}
 	tempResource.SetName(updatedName)
 	err = b.executeNameReferencesTransformer(m)
