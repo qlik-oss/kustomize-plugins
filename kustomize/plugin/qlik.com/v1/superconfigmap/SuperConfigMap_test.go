@@ -355,7 +355,6 @@ spec:
 		}
 	}
 
-
 	assertReferencesNotUpdated := func(t *testing.T, resMap resmap.ResMap) {
 		for _, res := range resMap.Resources() {
 			if res.GetKind() == "ConfigMap" {
@@ -462,6 +461,59 @@ assumeTargetWillExist: true
 `,
 			pluginInputResources: pluginInputResources,
 			checkAssertions: assertReferencesUpdatedWithHashes,
+		},
+		{
+			name: "appendNameSuffixHash_withPrefix",
+			pluginConfig: `
+apiVersion: qlik.com/v1
+kind: SuperConfigMap
+metadata:
+ name: my-config-map
+assumeTargetWillExist: true
+prefix: some-service-
+`,
+			pluginInputResources: pluginInputResources,
+			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
+				for _, res := range resMap.Resources() {
+					if res.GetKind() == "ConfigMap" {
+						assert.FailNow(t, "configMap should not be present in the stream")
+						break
+					}
+				}
+
+				foundDeployments := map[string]bool{"my-deployment-1": false, "my-deployment-2": false}
+				for _, deploymentName := range []string{"my-deployment-1", "my-deployment-2"} {
+					for _, res := range resMap.Resources() {
+						if res.GetKind() == "Deployment" && res.GetName() == deploymentName {
+							foundDeployments[deploymentName] = true
+
+							value, err := res.GetFieldValue("spec.template.spec.containers[0].env[0].valueFrom.configMapKeyRef.name")
+							assert.NoError(t, err)
+							refName := value.(string)
+
+							match, err := regexp.MatchString("^some-service-my-config-map-[0-9a-z]+$", refName)
+							assert.NoError(t, err)
+							assert.True(t, match)
+
+							generateResMap, err := KustomizePlugin.Generate()
+							assert.NoError(t, err)
+
+							tempRes := generateResMap.GetByIndex(0)
+							assert.NotNil(t, tempRes)
+							assert.True(t, tempRes.NeedHashSuffix())
+
+							hash, err := KustomizePlugin.Hasher.Hash(tempRes)
+							assert.NoError(t, err)
+							assert.Equal(t, fmt.Sprintf("some-service-%s-%s", tempRes.GetName(), hash), refName)
+
+							break
+						}
+					}
+				}
+				for deploymentName := range foundDeployments {
+					assert.True(t, foundDeployments[deploymentName])
+				}
+			},
 		},
 	}
 	for _, testCase := range testCases {
