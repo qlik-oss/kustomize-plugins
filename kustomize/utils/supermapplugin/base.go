@@ -5,7 +5,13 @@ import (
 	"fmt"
 	"log"
 
+	"sigs.k8s.io/kustomize/v3/k8sdeps/transformer"
+	"sigs.k8s.io/kustomize/v3/k8sdeps/validator"
+	"sigs.k8s.io/kustomize/v3/pkg/fs"
+	"sigs.k8s.io/kustomize/v3/pkg/loader"
+	"sigs.k8s.io/kustomize/v3/pkg/plugins"
 	"sigs.k8s.io/kustomize/v3/pkg/resource"
+	"sigs.k8s.io/kustomize/v3/pkg/target"
 	"sigs.k8s.io/kustomize/v3/pkg/transformers"
 	"sigs.k8s.io/kustomize/v3/pkg/transformers/config"
 
@@ -19,25 +25,38 @@ type IDecorator interface {
 	GetType() string
 	GetConfigData() map[string]string
 	ShouldBase64EncodeConfigData() bool
-	GetAssumeTargetWillExist() bool
 	GetDisableNameSuffixHash() bool
 	Generate() (resmap.ResMap, error)
-	GetPrefix() string
 }
 
 type Base struct {
-	Hasher    ifc.KunstructuredHasher
-	Decorator IDecorator
+	AssumeTargetWillExist           bool   `json:"assumeTargetWillExist,omitempty" yaml:"assumeTargetWillExist,omitempty"`
+	AssumeTargetInKustomizationPath string `json:"assumeTargetInKustomizationPath,omitempty" yaml:"assumeTargetInKustomizationPath,omitempty"`
+	Prefix                          string `json:"prefix,omitempty" yaml:"prefix,omitempty"`
+	Rf                              *resmap.Factory
+	Hasher                          ifc.KunstructuredHasher
+	Decorator                       IDecorator
+}
+
+func NewBase(rf *resmap.Factory, decorator IDecorator) Base {
+	return Base{
+		AssumeTargetWillExist:           true,
+		AssumeTargetInKustomizationPath: "",
+		Prefix:                          "",
+		Rf:                              rf,
+		Decorator:                       decorator,
+		Hasher:                          rf.RF().Hasher(),
+	}
 }
 
 func (b *Base) Transform(m resmap.ResMap) error {
 	resource := b.find(b.Decorator.GetName(), b.Decorator.GetType(), m)
 	if resource != nil {
 		return b.executeBasicTransform(resource, m)
-	} else if b.Decorator.GetAssumeTargetWillExist() && !b.Decorator.GetDisableNameSuffixHash() {
+	} else if b.AssumeTargetWillExist && !b.Decorator.GetDisableNameSuffixHash() {
 		return b.executeAssumeWillExistTransform(m)
 	} else {
-		b.Decorator.GetLogger().Printf("NOT executing anything because resource: %v is NOT in the input stream and AssumeTargetWillExist: %v, disableNameSuffixHash: %v\n", b.Decorator.GetName(), b.Decorator.GetAssumeTargetWillExist(), b.Decorator.GetDisableNameSuffixHash())
+		b.Decorator.GetLogger().Printf("NOT executing anything because resource: %v is NOT in the input stream and AssumeTargetWillExist: %v, disableNameSuffixHash: %v\n", b.Decorator.GetName(), b.AssumeTargetWillExist, b.Decorator.GetDisableNameSuffixHash())
 	}
 	return nil
 }
@@ -56,6 +75,14 @@ func (b *Base) executeAssumeWillExistTransform(m resmap.ResMap) error {
 		b.Decorator.GetLogger().Printf("%v\n", err)
 		return err
 	}
+	if len(b.AssumeTargetInKustomizationPath) > 0 {
+		b.Decorator.GetLogger().Printf("augmenting temp resource: %v based on kustomization path: %v\n", b.Decorator.GetName(), b.AssumeTargetInKustomizationPath)
+		err = b.augmentBasedOnKustomizationPath(tempResource)
+		if err != nil {
+			b.Decorator.GetLogger().Printf("error augmenting temp resource: %v based on kustomization path: %v, error: %v\n", b.Decorator.GetName(), b.AssumeTargetInKustomizationPath, err)
+			return err
+		}
+	}
 	err = m.Append(tempResource)
 	if err != nil {
 		b.Decorator.GetLogger().Printf("error appending temp resource: %v to the resource map, error: %v\n", b.Decorator.GetName(), err)
@@ -66,9 +93,8 @@ func (b *Base) executeAssumeWillExistTransform(m resmap.ResMap) error {
 		b.Decorator.GetLogger().Printf("error hashing resource: %v, error: %v\n", b.Decorator.GetName(), err)
 		return err
 	}
-	prefix := b.Decorator.GetPrefix()
-	if len(prefix) > 0 {
-		updatedName = fmt.Sprintf("%s%s", prefix, updatedName)
+	if len(b.Prefix) > 0 {
+		updatedName = fmt.Sprintf("%s%s", b.Prefix, updatedName)
 	}
 	tempResource.SetName(updatedName)
 	err = b.executeNameReferencesTransformer(m)
@@ -84,12 +110,54 @@ func (b *Base) executeAssumeWillExistTransform(m resmap.ResMap) error {
 	return nil
 }
 
+func (b *Base) augmentBasedOnKustomizationPath(tempResource *resource.Resource) error {
+	resMapFromKustomizationPath, err := b.processKustomizationPath(b.AssumeTargetInKustomizationPath)
+	if err != nil {
+		b.Decorator.GetLogger().Printf("error processing kustomize path: %v, error: %v\n", b.AssumeTargetInKustomizationPath, err)
+		return err
+	}
+	resFromKustomizationPath := b.find(b.Decorator.GetName(), b.Decorator.GetType(), resMapFromKustomizationPath)
+	if resFromKustomizationPath == nil {
+		b.Decorator.GetLogger().Printf("unable to find target resource: %v in kustomization path: %v\n", b.Decorator.GetName(), b.AssumeTargetInKustomizationPath)
+	} else {
+		data, err := resFromKustomizationPath.GetFieldValue("data")
+		if err != nil {
+			b.Decorator.GetLogger().Printf("error extracting data map from target resource: %v in kustomization path: %v, error: %v\n", b.Decorator.GetName(), b.AssumeTargetInKustomizationPath, err)
+			return err
+		}
+		strData := make(map[string]string)
+		for k, v := range data.(map[string]interface{}) {
+			strData[k] = v.(string)
+		}
+		err = b.appendData(tempResource, strData, true)
+		if err != nil {
+			b.Decorator.GetLogger().Printf("error appending data from target resource: %v in kustomization path: %v, error: %v\n", b.Decorator.GetName(), b.AssumeTargetInKustomizationPath, err)
+			return err
+		}
+	}
+	return nil
+}
+
+func (b *Base) processKustomizationPath(kustomizationPath string) (resmap.ResMap, error) {
+	ldr, err := loader.NewLoader(loader.RestrictionNone, validator.NewKustValidator(), kustomizationPath, fs.MakeFsOnDisk())
+	if err != nil {
+		return nil, err
+	}
+	defer ldr.Cleanup()
+
+	kt, err := target.NewKustTarget(ldr, b.Rf, transformer.NewFactoryImpl(), plugins.NewLoader(plugins.ActivePluginConfig(), b.Rf))
+	if err != nil {
+		return nil, err
+	}
+	return kt.MakeCustomizedResMap()
+}
+
 func (b *Base) executeBasicTransform(resource *resource.Resource, m resmap.ResMap) error {
 	b.Decorator.GetLogger().Printf("executeBasicTransform() for resource: %v...\n", resource)
 
 	var updatedName string
 	var err error
-	if err := b.appendData(resource, b.Decorator.GetConfigData()); err != nil {
+	if err := b.appendData(resource, b.Decorator.GetConfigData(), false); err != nil {
 		b.Decorator.GetLogger().Printf("error appending data to resource: %v, error: %v\n", b.Decorator.GetName(), err)
 		return err
 	}
@@ -134,7 +202,7 @@ func (b *Base) generateNameWithHash(res *resource.Resource) (string, error) {
 	return fmt.Sprintf("%s-%s", res.GetName(), hash), nil
 }
 
-func (b *Base) appendData(res *resource.Resource, data map[string]string) error {
+func (b *Base) appendData(res *resource.Resource, data map[string]string, straightCopy bool) error {
 	for k, v := range data {
 		pathToField := []string{"data", k}
 		err := transformers.MutateField(
@@ -143,7 +211,7 @@ func (b *Base) appendData(res *resource.Resource, data map[string]string) error 
 			true,
 			func(interface{}) (interface{}, error) {
 				var val string
-				if b.Decorator.ShouldBase64EncodeConfigData() {
+				if !straightCopy && b.Decorator.ShouldBase64EncodeConfigData() {
 					val = base64.StdEncoding.EncodeToString([]byte(v))
 				} else {
 					val = v

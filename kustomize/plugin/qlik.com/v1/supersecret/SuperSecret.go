@@ -15,11 +15,9 @@ import (
 )
 
 type plugin struct {
-	StringData            map[string]string `json:"stringData,omitempty" yaml:"stringData,omitempty"`
-	Data                  map[string]string `json:"data,omitempty" yaml:"data,omitempty"`
-	AssumeTargetWillExist bool              `json:"assumeTargetWillExist,omitempty" yaml:"assumeTargetWillExist,omitempty"`
-	Prefix                string            `json:"prefix,omitempty" yaml:"prefix,omitempty"`
-	aggregateConfigData   map[string]string
+	StringData          map[string]string `json:"stringData,omitempty" yaml:"stringData,omitempty"`
+	Data                map[string]string `json:"data,omitempty" yaml:"data,omitempty"`
+	aggregateConfigData map[string]string
 	builtin.SecretGeneratorPlugin
 	supermapplugin.Base
 }
@@ -33,13 +31,9 @@ func init() {
 }
 
 func (p *plugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []byte) (err error) {
-	p.Base = supermapplugin.Base{
-		Hasher:    rf.RF().Hasher(),
-		Decorator: p,
-	}
+	p.Base = supermapplugin.NewBase(rf, p)
 	p.Data = make(map[string]string)
 	p.StringData = make(map[string]string)
-	p.AssumeTargetWillExist = true
 	err = yaml.Unmarshal(c, p)
 	if err != nil {
 		logger.Printf("error unmarshalling yaml, error: %v\n", err)
@@ -85,7 +79,7 @@ func (p *plugin) GetLogger() *log.Logger {
 }
 
 func (p *plugin) GetName() string {
-	return p.Name
+	return p.SecretGeneratorPlugin.Name
 }
 
 func (p *plugin) GetType() string {
@@ -100,14 +94,6 @@ func (p *plugin) ShouldBase64EncodeConfigData() bool {
 	return true
 }
 
-func (p *plugin) GetAssumeTargetWillExist() bool {
-	return p.AssumeTargetWillExist
-}
-
 func (p *plugin) GetDisableNameSuffixHash() bool {
-	return p.DisableNameSuffixHash
-}
-
-func (p *plugin) GetPrefix() string {
-	return p.Prefix
+	return p.SecretGeneratorPlugin.DisableNameSuffixHash
 }

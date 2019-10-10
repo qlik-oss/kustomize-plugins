@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/qlik-oss/kustomize-plugins/kustomize/utils/loadertest"
-
 	"github.com/stretchr/testify/assert"
 	"sigs.k8s.io/kustomize/v3/k8sdeps/kunstruct"
 	"sigs.k8s.io/kustomize/v3/k8sdeps/transformer"
