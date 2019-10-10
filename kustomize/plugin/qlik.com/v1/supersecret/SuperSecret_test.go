@@ -478,6 +478,59 @@ assumeTargetWillExist: true
 			pluginInputResources: pluginInputResources,
 			checkAssertions: assertReferencesUpdatedWithHashes,
 		},
+		{
+			name: "appendNameSuffixHash_withPrefix",
+			pluginConfig: `
+apiVersion: qlik.com/v1
+kind: SuperSecret
+metadata:
+  name: mySecret
+assumeTargetWillExist: true
+prefix: some-service-
+`,
+			pluginInputResources: pluginInputResources,
+			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
+				for _, res := range resMap.Resources() {
+					if res.GetKind() == "Secret" {
+						assert.FailNow(t, "secret should not be present in the stream")
+						break
+					}
+				}
+
+				foundDeployments := map[string]bool{"myDeployment1": false, "myDeployment2": false}
+				for _, deploymentName := range []string{"myDeployment1", "myDeployment2"} {
+					for _, res := range resMap.Resources() {
+						if res.GetKind() == "Deployment" && res.GetName() == deploymentName {
+							foundDeployments[deploymentName] = true
+
+							value, err := res.GetFieldValue("spec.template.spec.volumes[0].secret.secretName")
+							assert.NoError(t, err)
+							refName := value.(string)
+
+							match, err := regexp.MatchString("^some-service-mySecret-[0-9a-z]+$", refName)
+							assert.NoError(t, err)
+							assert.True(t, match)
+
+							generateResMap, err := KustomizePlugin.Generate()
+							assert.NoError(t, err)
+
+							tempRes := generateResMap.GetByIndex(0)
+							assert.NotNil(t, tempRes)
+							assert.True(t, tempRes.NeedHashSuffix())
+
+							hash, err := KustomizePlugin.Hasher.Hash(tempRes)
+							assert.NoError(t, err)
+							assert.Equal(t, fmt.Sprintf("some-service-%s-%s", tempRes.GetName(), hash), refName)
+
+							break
+						}
+					}
+				}
+				for deploymentName := range foundDeployments {
+					assert.True(t, foundDeployments[deploymentName])
+				}
+			},
+		},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -516,7 +569,7 @@ func TestSuperSecret_generator(t *testing.T) {
 		checkAssertions      func(*testing.T, resmap.ResMap)
 	}{
 		{
-			name: "withoutHash_withoutStringData",
+			name: "withoutHash_withoutData",
 			pluginConfig: `
 apiVersion: qlik.com/v1
 kind: SuperSecret
@@ -544,15 +597,17 @@ disableNameSuffixHash: true
 			},
 		},
 		{
-			name: "withoutHash_withStringData",
+			name: "withoutHash_withData",
 			pluginConfig: `
 apiVersion: qlik.com/v1
 kind: SuperSecret
 metadata:
- name: mySecret
+  name: mySecret
 stringData:
- foo: bar
- baz: whatever
+  foo: bar
+  baz: whatever
+data:
+  anotherPassword: Ym9vbQ==
 behavior: create
 disableNameSuffixHash: true
 `,
@@ -566,7 +621,7 @@ disableNameSuffixHash: true
 
 						data, err := res.GetFieldValue("data")
 						assert.NoError(t, err)
-						assert.True(t, len(data.(map[string]interface{})) == 2)
+						assert.True(t, len(data.(map[string]interface{})) == 3)
 
 						value, err := res.GetFieldValue("data.foo")
 						assert.NoError(t, err)
@@ -576,6 +631,10 @@ disableNameSuffixHash: true
 						assert.NoError(t, err)
 						assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("whatever")), value)
 
+						value, err = res.GetFieldValue("data.anotherPassword")
+						assert.NoError(t, err)
+						assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("boom")), value)
+
 						break
 					}
 				}
@@ -583,12 +642,12 @@ disableNameSuffixHash: true
 			},
 		},
 		{
-			name: "withHash_withoutStringData",
+			name: "withHash_withoutData",
 			pluginConfig: `
 apiVersion: qlik.com/v1
 kind: SuperSecret
 metadata:
- name: mySecret
+  name: mySecret
 behavior: create
 `,
 			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
@@ -610,15 +669,17 @@ behavior: create
 			},
 		},
 		{
-			name: "withHash_withStringData",
+			name: "withHash_withData",
 			pluginConfig: `
 apiVersion: qlik.com/v1
 kind: SuperSecret
 metadata:
- name: mySecret
+  name: mySecret
 stringData:
- foo: bar
- baz: whatever
+  foo: bar
+  baz: whatever
+data:
+  anotherPassword: Ym9vbQ==
 behavior: create
 `,
 			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
@@ -631,7 +692,7 @@ behavior: create
 
 						data, err := res.GetFieldValue("data")
 						assert.NoError(t, err)
-						assert.True(t, len(data.(map[string]interface{})) == 2)
+						assert.True(t, len(data.(map[string]interface{})) == 3)
 
 						value, err := res.GetFieldValue("data.foo")
 						assert.NoError(t, err)
@@ -640,6 +701,10 @@ behavior: create
 						value, err = res.GetFieldValue("data.baz")
 						assert.NoError(t, err)
 						assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("whatever")), value)
+
+						value, err = res.GetFieldValue("data.anotherPassword")
+						assert.NoError(t, err)
+						assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("boom")), value)
 
 						break
 					}

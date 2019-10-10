@@ -67,8 +67,8 @@ func (b *Base) executeAssumeWillExistTransform(m resmap.ResMap) error {
 		return err
 	}
 	prefix := b.Decorator.GetPrefix()
-	if  len(prefix) > 0 {
-		updatedName = b.Decorator.GetPrefix() + updatedName
+	if len(prefix) > 0 {
+		updatedName = fmt.Sprintf("%s%s", prefix, updatedName)
 	}
 	tempResource.SetName(updatedName)
 	err = b.executeNameReferencesTransformer(m)
