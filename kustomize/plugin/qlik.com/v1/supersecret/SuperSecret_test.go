@@ -106,6 +106,8 @@ metadata:
 stringData:
   foo: bar
   baz: whatever
+data:
+  anotherPassword: Ym9vbQ==
 disableNameSuffixHash: true
 `,
 			pluginInputResources: pluginInputResources,
@@ -118,7 +120,7 @@ disableNameSuffixHash: true
 
 						data, err := res.GetFieldValue("data")
 						assert.NoError(t, err)
-						assert.True(t, len(data.(map[string]interface{})) == 3)
+						assert.True(t, len(data.(map[string]interface{})) == 4)
 
 						value, err := res.GetFieldValue("data.PASSWORD")
 						assert.NoError(t, err)
@@ -131,6 +133,10 @@ disableNameSuffixHash: true
 						value, err = res.GetFieldValue("data.baz")
 						assert.NoError(t, err)
 						assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("whatever")), value)
+
+						value, err = res.GetFieldValue("data.anotherPassword")
+						assert.NoError(t, err)
+						assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("boom")), value)
 
 						break
 					}
@@ -210,6 +216,8 @@ metadata:
 stringData:
   foo: bar
   baz: whatever
+data:
+  anotherPassword: Ym9vbQ==
 `,
 			pluginInputResources: pluginInputResources,
 			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
@@ -224,7 +232,7 @@ stringData:
 
 						data, err := res.GetFieldValue("data")
 						assert.NoError(t, err)
-						assert.True(t, len(data.(map[string]interface{})) == 3)
+						assert.True(t, len(data.(map[string]interface{})) == 4)
 
 						value, err := res.GetFieldValue("data.PASSWORD")
 						assert.NoError(t, err)
@@ -237,6 +245,10 @@ stringData:
 						value, err = res.GetFieldValue("data.baz")
 						assert.NoError(t, err)
 						assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("whatever")), value)
+
+						value, err = res.GetFieldValue("data.anotherPassword")
+						assert.NoError(t, err)
+						assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("boom")), value)
 
 						break
 					}

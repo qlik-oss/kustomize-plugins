@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"log"
 
@@ -15,7 +16,9 @@ import (
 
 type plugin struct {
 	StringData            map[string]string `json:"stringData,omitempty" yaml:"stringData,omitempty"`
+	Data                  map[string]string `json:"data,omitempty" yaml:"data,omitempty"`
 	AssumeTargetWillExist bool              `json:"assumeTargetWillExist,omitempty" yaml:"assumeTargetWillExist,omitempty"`
+	aggregateConfigData   map[string]string
 	builtin.SecretGeneratorPlugin
 	supermapplugin.Base
 }
@@ -33,6 +36,7 @@ func (p *plugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []byte) (err error
 		Hasher:    rf.RF().Hasher(),
 		Decorator: p,
 	}
+	p.Data = make(map[string]string)
 	p.StringData = make(map[string]string)
 	p.AssumeTargetWillExist = true
 	err = yaml.Unmarshal(c, p)
@@ -40,11 +44,32 @@ func (p *plugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []byte) (err error
 		logger.Printf("error unmarshalling yaml, error: %v\n", err)
 		return err
 	}
+	p.aggregateConfigData, err = p.getAggregateConfigData()
+	if err != nil {
+		logger.Printf("error accumulating config data: %v\n", err)
+		return err
+	}
 	return p.SecretGeneratorPlugin.Config(ldr, rf, c)
 }
 
-func (p *plugin) Generate() (resmap.ResMap, error) {
+func (p *plugin) getAggregateConfigData() (map[string]string, error) {
+	aggregateConfigData := make(map[string]string)
 	for k, v := range p.StringData {
+		aggregateConfigData[k] = v
+	}
+	for k, v := range p.Data {
+		decodedValue, err := base64.StdEncoding.DecodeString(v)
+		if err != nil {
+			logger.Printf("error base64 decoding value: %v for key: %v, error: %v\n", v, k, err)
+			return nil, err
+		}
+		aggregateConfigData[k] = string(decodedValue)
+	}
+	return aggregateConfigData, nil
+}
+
+func (p *plugin) Generate() (resmap.ResMap, error) {
+	for k, v := range p.aggregateConfigData {
 		p.LiteralSources = append(p.LiteralSources, fmt.Sprintf("%v=%v", k, v))
 	}
 	return p.SecretGeneratorPlugin.Generate()
@@ -67,7 +92,7 @@ func (p *plugin) GetType() string {
 }
 
 func (p *plugin) GetConfigData() map[string]string {
-	return p.StringData
+	return p.aggregateConfigData
 }
 
 func (p *plugin) ShouldBase64EncodeConfigData() bool {
