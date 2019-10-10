@@ -33,7 +33,7 @@ type Base struct {
 	AssumeTargetWillExist           bool   `json:"assumeTargetWillExist,omitempty" yaml:"assumeTargetWillExist,omitempty"`
 	AssumeTargetInKustomizationPath string `json:"assumeTargetInKustomizationPath,omitempty" yaml:"assumeTargetInKustomizationPath,omitempty"`
 	Prefix                          string `json:"prefix,omitempty" yaml:"prefix,omitempty"`
-	rf                              *resmap.Factory
+	Rf                              *resmap.Factory
 	Hasher                          ifc.KunstructuredHasher
 	Decorator                       IDecorator
 }
@@ -43,7 +43,7 @@ func NewBase(rf *resmap.Factory, decorator IDecorator) Base {
 		AssumeTargetWillExist:           true,
 		AssumeTargetInKustomizationPath: "",
 		Prefix:                          "",
-		rf:                              rf,
+		Rf:                              rf,
 		Decorator:                       decorator,
 		Hasher:                          rf.RF().Hasher(),
 	}
@@ -145,7 +145,7 @@ func (b *Base) processKustomizationPath(kustomizationPath string) (resmap.ResMap
 	}
 	defer ldr.Cleanup()
 
-	kt, err := target.NewKustTarget(ldr, b.rf, transformer.NewFactoryImpl(), plugins.NewLoader(plugins.ActivePluginConfig(), b.rf))
+	kt, err := target.NewKustTarget(ldr, b.Rf, transformer.NewFactoryImpl(), plugins.NewLoader(plugins.ActivePluginConfig(), b.Rf))
 	if err != nil {
 		return nil, err
 	}
