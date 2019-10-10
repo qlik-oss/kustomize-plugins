@@ -2,14 +2,15 @@ package main
 
 import (
 	"fmt"
-	"github.com/qlik-oss/kustomize-plugins/kustomize/utils"
-	"github.com/stretchr/testify/assert"
 	"regexp"
+	"testing"
+
+	"github.com/qlik-oss/kustomize-plugins/kustomize/utils/loadertest"
+	"github.com/stretchr/testify/assert"
 	"sigs.k8s.io/kustomize/v3/k8sdeps/kunstruct"
 	"sigs.k8s.io/kustomize/v3/k8sdeps/transformer"
 	"sigs.k8s.io/kustomize/v3/pkg/resmap"
 	"sigs.k8s.io/kustomize/v3/pkg/resource"
-	"testing"
 )
 
 func TestSuperConfigMap_simpleTransformer(t *testing.T) {
@@ -268,7 +269,7 @@ data:
 				t.Fatalf("Err: %v", err)
 			}
 
-			err = KustomizePlugin.Config(utils.NewFakeLoader("/"), resourceFactory, []byte(testCase.pluginConfig))
+			err = KustomizePlugin.Config(loadertest.NewFakeLoader("/"), resourceFactory, []byte(testCase.pluginConfig))
 			if err != nil {
 				t.Fatalf("Err: %v", err)
 			}
@@ -402,7 +403,7 @@ data:
  baz: boo
 `,
 			pluginInputResources: pluginInputResources,
-			checkAssertions: assertReferencesUpdatedWithHashes,
+			checkAssertions:      assertReferencesUpdatedWithHashes,
 		},
 		{
 			name: "assumeTargetWillExist_canBeTurnedOff",
@@ -417,7 +418,7 @@ data:
 assumeTargetWillExist: false
 `,
 			pluginInputResources: pluginInputResources,
-			checkAssertions: assertReferencesNotUpdated,
+			checkAssertions:      assertReferencesNotUpdated,
 		},
 		{
 			name: "withHash_withAppendData",
@@ -432,7 +433,7 @@ data:
 assumeTargetWillExist: true
 `,
 			pluginInputResources: pluginInputResources,
-			checkAssertions: assertReferencesUpdatedWithHashes,
+			checkAssertions:      assertReferencesUpdatedWithHashes,
 		},
 		{
 			name: "doesNothing_withoutHash",
@@ -448,7 +449,7 @@ assumeTargetWillExist: true
 disableNameSuffixHash: true
 `,
 			pluginInputResources: pluginInputResources,
-			checkAssertions: assertReferencesNotUpdated,
+			checkAssertions:      assertReferencesNotUpdated,
 		},
 		{
 			name: "appendNameSuffixHash_forEmptyData",
@@ -460,7 +461,7 @@ metadata:
 assumeTargetWillExist: true
 `,
 			pluginInputResources: pluginInputResources,
-			checkAssertions: assertReferencesUpdatedWithHashes,
+			checkAssertions:      assertReferencesUpdatedWithHashes,
 		},
 		{
 			name: "appendNameSuffixHash_withPrefix",
@@ -526,7 +527,7 @@ prefix: some-service-
 				t.Fatalf("Err: %v", err)
 			}
 
-			err = KustomizePlugin.Config(utils.NewFakeLoader("/"), resourceFactory, []byte(testCase.pluginConfig))
+			err = KustomizePlugin.Config(loadertest.NewFakeLoader("/"), resourceFactory, []byte(testCase.pluginConfig))
 			if err != nil {
 				t.Fatalf("Err: %v", err)
 			}
@@ -690,7 +691,7 @@ behavior: create
 			resourceFactory := resmap.NewFactory(resource.NewFactory(
 				kunstruct.NewKunstructuredFactoryImpl()), transformer.NewFactoryImpl())
 
-			err := KustomizePlugin.Config(utils.NewFakeLoader("/"), resourceFactory, []byte(testCase.pluginConfig))
+			err := KustomizePlugin.Config(loadertest.NewFakeLoader("/"), resourceFactory, []byte(testCase.pluginConfig))
 			if err != nil {
 				t.Fatalf("Err: %v", err)
 			}
