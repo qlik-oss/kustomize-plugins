@@ -43,7 +43,7 @@ func (p *plugin) makeIndividualPatches(pat types.Patch) ([]byte, error) {
 func (p *plugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []byte) error {
 	// To avoid https://github.com/kubernetes-sigs/kustomize/blob/master/docs/FAQ.md#security-file-foo-is-not-in-or-below-bar
 	// start of work around
-	fSys := fs.MakeRealFS()
+	fSys := fs.MakeFsOnDisk()
 	newLdr, err := loader.NewLoader(loader.RestrictionNone, ldr.Validator(), ldr.Root(), fSys)
 	if err != nil {
 		logger.Printf("error creating a new loader from default loader, error: %v\n", err)

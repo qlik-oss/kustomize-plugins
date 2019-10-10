@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/qlik-oss/kustomize-plugins/kustomize/utils"
+	"github.com/qlik-oss/kustomize-plugins/kustomize/utils/loadertest"
 
 	"github.com/stretchr/testify/assert"
 	"sigs.k8s.io/kustomize/v3/k8sdeps/kunstruct"
@@ -282,7 +282,7 @@ data:
 				t.Fatalf("Err: %v", err)
 			}
 
-			err = KustomizePlugin.Config(utils.NewFakeLoader("/"), resourceFactory, []byte(testCase.pluginConfig))
+			err = KustomizePlugin.Config(loadertest.NewFakeLoader("/"), resourceFactory, []byte(testCase.pluginConfig))
 			if err != nil {
 				t.Fatalf("Err: %v", err)
 			}
@@ -542,7 +542,7 @@ prefix: some-service-
 				t.Fatalf("Err: %v", err)
 			}
 
-			err = KustomizePlugin.Config(utils.NewFakeLoader("/"), resourceFactory, []byte(testCase.pluginConfig))
+			err = KustomizePlugin.Config(loadertest.NewFakeLoader("/"), resourceFactory, []byte(testCase.pluginConfig))
 			if err != nil {
 				t.Fatalf("Err: %v", err)
 			}
@@ -718,7 +718,7 @@ behavior: create
 			resourceFactory := resmap.NewFactory(resource.NewFactory(
 				kunstruct.NewKunstructuredFactoryImpl()), transformer.NewFactoryImpl())
 
-			err := KustomizePlugin.Config(utils.NewFakeLoader("/"), resourceFactory, []byte(testCase.pluginConfig))
+			err := KustomizePlugin.Config(loadertest.NewFakeLoader("/"), resourceFactory, []byte(testCase.pluginConfig))
 			if err != nil {
 				t.Fatalf("Err: %v", err)
 			}

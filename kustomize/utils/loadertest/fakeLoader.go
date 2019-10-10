@@ -1,7 +1,12 @@
-package utils
+// Copyright 2019 The Kubernetes Authors.
+// SPDX-License-Identifier: Apache-2.0
+
+// Package loadertest holds a fake for the Loader interface.
+package loadertest
 
 import (
 	"log"
+
 	"sigs.k8s.io/kustomize/v3/pkg/fs"
 	"sigs.k8s.io/kustomize/v3/pkg/ifc"
 	"sigs.k8s.io/kustomize/v3/pkg/loader"
@@ -9,6 +14,7 @@ import (
 	"sigs.k8s.io/kustomize/v3/pkg/validators"
 )
 
+// FakeLoader encapsulates the delegate Loader and the fake file system.
 type FakeLoader struct {
 	fs       fs.FileSystem
 	delegate ifc.Loader
@@ -28,7 +34,7 @@ func NewFakeLoader(initialDir string) FakeLoader {
 func NewFakeLoaderWithRestrictor(
 	lr loader.LoadRestrictorFunc, initialDir string) FakeLoader {
 	// Create fake filesystem and inject it into initial Loader.
-	fSys := fs.MakeFakeFS()
+	fSys := fs.MakeFsInMemory()
 	fSys.Mkdir(initialDir)
 	ldr, err := loader.NewLoader(
 		lr, validators.MakeFakeValidator(), initialDir, fSys)
