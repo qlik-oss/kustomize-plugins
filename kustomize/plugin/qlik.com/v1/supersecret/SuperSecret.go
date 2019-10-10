@@ -16,6 +16,7 @@ import (
 
 type plugin struct {
 	StringData            map[string]string `json:"stringData,omitempty" yaml:"stringData,omitempty"`
+	Data                  map[string]string `json:"data,omitempty" yaml:"data,omitempty"`
 	AssumeTargetWillExist bool              `json:"assumeTargetWillExist,omitempty" yaml:"assumeTargetWillExist,omitempty"`
 	Prefix                string            `json:"prefix,omitempty" yaml:"prefix,omitempty"`
 	aggregateConfigData   map[string]string
