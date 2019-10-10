@@ -1,5 +1,5 @@
-kustomizeVersionShort := v3.2.2
+versionOfKustomizeCLI := v3.2.3
 
 install:
-	./scripts/gogetKustomize.sh ${kustomizeVersionShort}
+	./scripts/buildKustomizeCLI.sh ${versionOfKustomizeCLI}
 	./scripts/build.sh
