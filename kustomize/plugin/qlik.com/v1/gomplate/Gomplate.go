@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -96,9 +95,12 @@ func (p *plugin) Transform(m resmap.ResMap) error {
 	} else if vaultAddress != "" && vaultToken != "" {
 		dataSource = fmt.Sprintf("%s", p.DataSource["vault"].(map[string]interface{})["secretPath"])
 	} else {
-		logger.Print("returning error exit 1\n")
-		return errors.New("exit 1")
+		dataSource = fmt.Sprintf("%s", p.DataSource["file"].(map[string]interface{})["path"])
 	}
+	// } else {
+	// 	logger.Print("returning error exit 1\n")
+	// 	return errors.New("exit 1")
+	// }
 
 	for _, r := range m.Resources() {
 		yamlByte, err := r.AsYAML()
