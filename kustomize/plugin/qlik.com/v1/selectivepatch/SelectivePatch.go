@@ -16,8 +16,11 @@ import (
 
 type plugin struct {
 	Enabled bool          `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	Default bool          `json:"default,omitempty" yaml:"default,omitempty"`
 	Patches []types.Patch `json:"patches,omitempty" yaml:"patches,omitempty"`
+	Defaults []types.Patch `json:"defaults,omitempty" yaml:"defaults,omitempty"`
 	ts      []resmap.Transformer
+	tsDefaults []resmap.Transformer
 }
 
 //nolint: go-lint noinspection GoUnusedGlobalVariable
@@ -40,7 +43,7 @@ func (p *plugin) makeIndividualPatches(pat types.Patch) ([]byte, error) {
 func (p *plugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []byte) error {
 	// To avoid https://github.com/kubernetes-sigs/kustomize/blob/master/docs/FAQ.md#security-file-foo-is-not-in-or-below-bar
 	// start of work around
-	fSys := fs.MakeRealFS()
+	fSys := fs.MakeFsOnDisk()
 	newLdr, err := loader.NewLoader(loader.RestrictionNone, ldr.Validator(), ldr.Root(), fSys)
 	if err != nil {
 		logger.Printf("error creating a new loader from default loader, error: %v\n", err)
@@ -63,18 +66,38 @@ func (p *plugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []byte) error {
 		p.ts = append(p.ts, prefixer)
 
 	}
+	for _, v := range p.Defaults{
+		//fmt.Println(v.Path)
+		b, _ := p.makeIndividualPatches(v)
+		prefixer := builtin.NewPatchTransformerPlugin()
+		err = prefixer.Config(newLdr, rf, b)
+		if err != nil {
+			logger.Printf("error executing PatchTransformerPlugin.Config(), error: %v\n", err)
+			return errors.Wrapf(err, "stringprefixer configure")
+		}
+		p.tsDefaults = append(p.tsDefaults, prefixer)
+
+	}
 	return nil
 }
 
 func (p *plugin) Transform(m resmap.ResMap) error {
-	if !p.Enabled {
-		return nil
+	if p.Enabled {
+		for _, t := range p.ts {
+			err := t.Transform(m)
+			if err != nil {
+				logger.Printf("error executing Transform(), error: %v\n", err)
+				return err
+			}
+		}
 	}
-	for _, t := range p.ts {
-		err := t.Transform(m)
-		if err != nil {
-			logger.Printf("error executing Transform(), error: %v\n", err)
-			return err
+	if p.Default {
+		for _, t := range p.tsDefaults {
+			err := t.Transform(m)
+			if err != nil {
+				logger.Printf("error executing Transform(), error: %v\n", err)
+				return err
+			}
 		}
 	}
 	return nil

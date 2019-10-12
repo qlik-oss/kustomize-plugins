@@ -1,5 +1,5 @@
-KUSTOMIZE_VERSION := v3.2.0
+versionOfKustomizeCLI := v3.2.3
 
 install:
-	GO111MODULE=on go get sigs.k8s.io/kustomize/v3/cmd/kustomize@${KUSTOMIZE_VERSION}
+	./scripts/buildKustomizeCLI.sh ${versionOfKustomizeCLI}
 	./scripts/build.sh
