@@ -2,15 +2,15 @@ package main
 
 import (
 	"fmt"
+	"strings"
+	"testing"
+
 	"github.com/qlik-oss/kustomize-plugins/kustomize/utils/loadertest"
+	"github.com/stretchr/testify/assert"
 	"sigs.k8s.io/kustomize/v3/k8sdeps/kunstruct"
 	"sigs.k8s.io/kustomize/v3/k8sdeps/transformer"
 	"sigs.k8s.io/kustomize/v3/pkg/resmap"
 	"sigs.k8s.io/kustomize/v3/pkg/resource"
-	"strings"
-	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestBasicSed(t *testing.T) {
