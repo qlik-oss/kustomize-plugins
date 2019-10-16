@@ -1,0 +1,154 @@
+package main
+
+import (
+	"fmt"
+	"strings"
+	"testing"
+
+	"github.com/qlik-oss/kustomize-plugins/kustomize/utils/loadertest"
+	"github.com/stretchr/testify/assert"
+	"sigs.k8s.io/kustomize/v3/k8sdeps/kunstruct"
+	"sigs.k8s.io/kustomize/v3/k8sdeps/transformer"
+	"sigs.k8s.io/kustomize/v3/pkg/resmap"
+	"sigs.k8s.io/kustomize/v3/pkg/resource"
+)
+
+func TestBasicSed(t *testing.T) {
+	p := plugin{
+		Regex: "s/hello/goodbye/g",
+	}
+	result, err := p.executeSed("hello there!")
+	assert.NoError(t, err)
+	assert.Equal(t, "goodbye there!", result)
+}
+
+func TestSedOnPath(t *testing.T) {
+	pluginInputResources := `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+ name: the-deployment
+spec:
+ replicas: 3
+ template:
+   spec:
+     containers:
+     - name: the-container-1
+       image: the-image-1:1
+       command: ["/foo", "--port=8080", "--bar=baz"]
+     - name: the-container-2
+       image: the-image-2:1
+       command: ["/abra", "--port=8080", "--cadabra=bam"]
+`
+	testCases := []struct {
+		name                    string
+		pluginConfig            string
+		pluginInputResources    string
+		expectingTransformError bool
+		checkAssertions         func(*testing.T, resmap.ResMap)
+	}{
+		{
+			name: "value_at_path_is_map",
+			pluginConfig: `
+apiVersion: qlik.com/v1
+kind: SedOnPath
+metadata:
+ name: notImportantHere
+path: spec/template
+regex: s/.*//g
+`,
+			pluginInputResources:    pluginInputResources,
+			expectingTransformError: true,
+			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
+				assert.FailNow(t, "should not be here!")
+			},
+		},
+		{
+			name: "value_at_path_is_string",
+			pluginConfig: `
+apiVersion: qlik.com/v1
+kind: SedOnPath
+metadata:
+ name: notImportantHere
+path: spec/template/spec/containers/name
+regex: s/the-container/the-awesome-container/g
+`,
+			pluginInputResources:    pluginInputResources,
+			expectingTransformError: false,
+			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
+				res := resMap.GetByIndex(0)
+				assert.NotNil(t, res)
+
+				containers, err := res.GetFieldValue("spec.template.spec.containers")
+				assert.NoError(t, err)
+
+				for _, container := range containers.([]interface{}) {
+					assert.True(t, strings.HasPrefix(container.(map[string]interface{})["name"].(string), "the-awesome-container-"))
+				}
+			},
+		},
+		{
+			name: "value_at_path_is_array_of_strings",
+			pluginConfig: `
+apiVersion: qlik.com/v1
+kind: SedOnPath
+metadata:
+ name: notImportantHere
+path: spec/template/spec/containers/command
+regex: s/--port=.*$/--port=1234/g
+`,
+			pluginInputResources:    pluginInputResources,
+			expectingTransformError: false,
+			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
+				res := resMap.GetByIndex(0)
+				assert.NotNil(t, res)
+
+				containers, err := res.GetFieldValue("spec.template.spec.containers")
+				assert.NoError(t, err)
+
+				portArgSubCounter := 0
+				for _, container := range containers.([]interface{}) {
+					args := container.(map[string]interface{})["command"].([]interface{})
+					for _, arg := range args {
+						zArg := arg.(string)
+						if zArg == "--port=1234" {
+							portArgSubCounter++
+						}
+					}
+				}
+				assert.Equal(t, 2, portArgSubCounter)
+			},
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			resourceFactory := resmap.NewFactory(resource.NewFactory(
+				kunstruct.NewKunstructuredFactoryImpl()), transformer.NewFactoryImpl())
+
+			resMap, err := resourceFactory.NewResMapFromBytes([]byte(testCase.pluginInputResources))
+			if err != nil {
+				t.Fatalf("Err: %v", err)
+			}
+
+			err = KustomizePlugin.Config(loadertest.NewFakeLoader("/"), resourceFactory, []byte(testCase.pluginConfig))
+			if err != nil {
+				t.Fatalf("Err: %v", err)
+			}
+
+			err = KustomizePlugin.Transform(resMap)
+			if err != nil && testCase.expectingTransformError {
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Err: %v", err)
+			}
+
+			for _, res := range resMap.Resources() {
+				fmt.Printf("--res: %v\n", res.String())
+			}
+
+			testCase.checkAssertions(t, resMap)
+		})
+	}
+}

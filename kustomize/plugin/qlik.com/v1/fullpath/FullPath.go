@@ -47,6 +47,7 @@ func (p *plugin) Transform(m resmap.ResMap) error {
 				fieldSpec.CreateIfNotPresent,
 				p.computePath)
 			if err != nil {
+				logger.Printf("error executing transformers.MutateField(), error: %v\n", err)
 				return err
 			}
 		}
