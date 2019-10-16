@@ -65,7 +65,11 @@ func (p *plugin) executeSedOnValue(in interface{}) (interface{}, error) {
 	if ok {
 		zNewArray := zArray[:0]
 		for _, zValue := range zArray {
-			zNewValue, err := p.executeSedOnValue(zValue)
+			zString, ok := zValue.(string)
+			if !ok {
+				return nil, fmt.Errorf("%#v is expected to be a string or []string", in)
+			}
+			zNewValue, err := p.executeSed(zString)
 			if err != nil {
 				return nil, err
 			}
@@ -77,17 +81,17 @@ func (p *plugin) executeSedOnValue(in interface{}) (interface{}, error) {
 	return nil, fmt.Errorf("%#v is expected to be a string or []string", in)
 }
 
+func (p *plugin) executeSed(zString string) (string, error) {
+	cmd := exec.Command("sed", "-e", p.Regex)
+	cmd.Stdin = bytes.NewBuffer([]byte(zString))
+	output, err := cmd.Output()
+	return string(output), err
+}
+
 func (p *plugin) runCommand(cmd *exec.Cmd, env []string, dir *string) ([]byte, error) {
 	cmd.Env = env
 	if dir != nil {
 		cmd.Dir = *dir
 	}
 	return cmd.Output()
-}
-
-func (p *plugin) executeSed(zString string) (string, error) {
-	cmd := exec.Command("sed", "-e", p.Regex)
-	cmd.Stdin = bytes.NewBuffer([]byte(zString))
-	output, err := cmd.Output()
-	return string(output), err
 }
