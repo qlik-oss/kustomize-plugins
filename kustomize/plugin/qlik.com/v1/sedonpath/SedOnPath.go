@@ -87,11 +87,3 @@ func (p *plugin) executeSed(zString string) (string, error) {
 	output, err := cmd.Output()
 	return string(output), err
 }
-
-func (p *plugin) runCommand(cmd *exec.Cmd, env []string, dir *string) ([]byte, error) {
-	cmd.Env = env
-	if dir != nil {
-		cmd.Dir = *dir
-	}
-	return cmd.Output()
-}
