@@ -16,7 +16,7 @@ import (
 
 type plugin struct {
 	Path      string `json:"path,omitempty" yaml:"path,omitempty"`
-	Regex     string `json:"regex,omitempty" yaml:"regex,omitempty"`
+	Regex     []string `json:"regex,omitempty" yaml:"regex,omitempty"`
 	fieldSpec config.FieldSpec
 }
 
@@ -30,7 +30,7 @@ func init() {
 
 func (p *plugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []byte) (err error) {
 	p.Path = ""
-	p.Regex = ""
+	p.Regex = make([]string, 0)
 	err = yaml.Unmarshal(c, p)
 	if err != nil {
 		logger.Printf("error unmarshalling config from yaml, error: %v\n", err)
@@ -82,8 +82,14 @@ func (p *plugin) executeSedOnValue(in interface{}) (interface{}, error) {
 }
 
 func (p *plugin) executeSed(zString string) (string, error) {
-	cmd := exec.Command("sed", "-e", p.Regex)
-	cmd.Stdin = bytes.NewBuffer([]byte(zString))
-	output, err := cmd.Output()
-	return string(output), err
+	for _, regex := range p.Regex {
+		cmd := exec.Command("sed", "-e", regex)
+		cmd.Stdin = bytes.NewBuffer([]byte(zString))
+		output, err := cmd.Output()
+		if err != nil {
+			return "", err
+		}
+		zString = string(output)
+	}
+	return zString, nil
 }
