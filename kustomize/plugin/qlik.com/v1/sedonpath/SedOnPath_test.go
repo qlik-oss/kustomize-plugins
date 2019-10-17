@@ -15,7 +15,7 @@ import (
 
 func TestBasicSed(t *testing.T) {
 	p := plugin{
-		Regex: "s/hello/goodbye/g",
+		Regex: []string{"s/hello/goodbye/g"},
 	}
 	result, err := p.executeSed("hello there!")
 	assert.NoError(t, err)
@@ -27,18 +27,26 @@ func TestSedOnPath(t *testing.T) {
 apiVersion: apps/v1
 kind: Deployment
 metadata:
- name: the-deployment
+  name: the-deployment
 spec:
- replicas: 3
- template:
-   spec:
-     containers:
-     - name: the-container-1
-       image: the-image-1:1
-       command: ["/foo", "--port=8080", "--bar=baz"]
-     - name: the-container-2
-       image: the-image-2:1
-       command: ["/abra", "--port=8080", "--cadabra=bam"]
+  replicas: 3
+  template:
+    spec:
+      containers:
+      - name: the-container-1
+        image: the-image-1:1
+        command: 
+        - /foo
+        - --port=8080
+        - --bar=baz
+        - --TempContentServiceUrl=http://temporary-contents:6080
+      - name: the-container-2
+        image: the-image-2:1
+        command: 
+        - /abra
+        - --port=8080
+        - --cadabra=bam
+        - --TempContentServiceUrl=http://temporary-contents:6080
 `
 	testCases := []struct {
 		name                    string
@@ -55,7 +63,8 @@ kind: SedOnPath
 metadata:
  name: notImportantHere
 path: spec/template
-regex: s/.*//g
+regex: 
+- s/.*//g
 `,
 			pluginInputResources:    pluginInputResources,
 			expectingTransformError: true,
@@ -71,7 +80,8 @@ kind: SedOnPath
 metadata:
  name: notImportantHere
 path: spec/template/spec/containers/name
-regex: s/the-container/the-awesome-container/g
+regex: 
+- s/the-container/the-awesome-container/g
 `,
 			pluginInputResources:    pluginInputResources,
 			expectingTransformError: false,
@@ -93,9 +103,11 @@ regex: s/the-container/the-awesome-container/g
 apiVersion: qlik.com/v1
 kind: SedOnPath
 metadata:
- name: notImportantHere
+  name: notImportantHere
 path: spec/template/spec/containers/command
-regex: s/--port=.*$/--port=1234/g
+regex: 
+- s/--port=.*$/--port=1234/g
+- s/--TempContentServiceUrl=.*$/--TempContentServiceUrl=http:\/\/\$\(PREFIX\)-contents:6080/g
 `,
 			pluginInputResources:    pluginInputResources,
 			expectingTransformError: false,
@@ -117,6 +129,18 @@ regex: s/--port=.*$/--port=1234/g
 					}
 				}
 				assert.Equal(t, 2, portArgSubCounter)
+
+				tempContentServiceUrlSubCounter := 0
+				for _, container := range containers.([]interface{}) {
+					args := container.(map[string]interface{})["command"].([]interface{})
+					for _, arg := range args {
+						zArg := arg.(string)
+						if zArg == "--TempContentServiceUrl=http://$(PREFIX)-contents:6080" {
+							tempContentServiceUrlSubCounter++
+						}
+					}
+				}
+				assert.Equal(t, 2, tempContentServiceUrlSubCounter)
 			},
 		},
 	}
