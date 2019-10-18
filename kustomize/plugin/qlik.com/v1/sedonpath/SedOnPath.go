@@ -45,7 +45,7 @@ func (p *plugin) Transform(m resmap.ResMap) error {
 		err := transformers.MutateField(
 			r.Map(),
 			p.fieldSpec.PathSlice(),
-			true,
+			false,
 			p.executeSedOnValue)
 		if err != nil {
 			logger.Printf("error executing transformers.MutateField(), error: %v\n", err)
