@@ -77,7 +77,6 @@ func (p *plugin) resolveVarValues(m resmap.ResMap) (map[string]interface{}, erro
 				}
 				varValues[zVar.Name] = val
 				foundVars[zVar.Name] = true
-				break
 			}
 		}
 	}
