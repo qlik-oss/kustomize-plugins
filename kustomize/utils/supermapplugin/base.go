@@ -187,7 +187,7 @@ func (b *Base) executeNameReferencesTransformer(m resmap.ResMap) error {
 
 func (b *Base) find(name string, resourceType string, m resmap.ResMap) *resource.Resource {
 	for _, res := range m.Resources() {
-		if res.GetKind() == resourceType && res.GetOriginalName() == b.Decorator.GetName() {
+		if res.GetKind() == resourceType && res.GetName() == b.Decorator.GetName() {
 			return res
 		}
 	}
