@@ -167,11 +167,20 @@ func (b *Base) executeBasicTransform(resource *resource.Resource, m resmap.ResMa
 			b.Decorator.GetLogger().Printf("error hashing resource: %v, error: %v\n", b.Decorator.GetName(), err)
 			return err
 		}
-		resource.SetName(updatedName)
 	}
 	if len(updatedName) > 0 {
-		err := b.executeNameReferencesTransformer(m)
-		if err != nil {
+		if err := m.Remove(resource.CurId()); err != nil {
+			b.Decorator.GetLogger().Printf("error removing original resource on name change: %v\n", err)
+			return err
+		}
+		newResource := b.Rf.RF().FromMap(resource.Map())
+		if err := m.Append(newResource); err != nil {
+			b.Decorator.GetLogger().Printf("error re-adding resource on name change: %v\n", err)
+			return err
+		}
+
+		resource.SetName(updatedName)
+		if err := b.executeNameReferencesTransformer(m); err != nil {
 			b.Decorator.GetLogger().Printf("error executing nameReferenceTransformer.Transform(): %v\n", err)
 			return err
 		}
