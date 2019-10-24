@@ -27,3 +27,4 @@ COPY --from=build /tmp/go/src/qlik-oss/kustomize-plugins/kustomize /root/.config
 RUN curl -Lo kubeval-linux-amd64.tar.gz https://github.com/instrumenta/kubeval/releases/latest/download/kubeval-linux-amd64.tar.gz
 RUN tar xf kubeval-linux-amd64.tar.gz
 RUN cp kubeval /usr/local/bin
+COPY FullPath /root/.config/kustomize/plugin/qlik.com/v1/fullpath/

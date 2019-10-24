@@ -1,0 +1,31 @@
+#!/bin/bash
+set -e
+allresources=`cat`
+
+count=0
+retval=0
+curdir=`pwd`
+allresources=`echo "$allresources" | sed 's,$(pwd),'"$curdir"',g'`
+while [ $retval -eq 0 ]; do
+  echo "$allresources" | yq r -d $count - &>/dev/null || retval=$?
+  if [ $retval -eq 0 ]; then
+    kind=`echo "$allresources" | yq r -d $count - kind`
+    if [ $kind == "SelectivePatch" ]; then
+      count2=0
+      while true; do 
+        patch=`echo "$allresources" | yq r -d $count - patches[$count2]`
+        if [ -z "$patch" ] || [ "$patch" == "null" ]; then
+          break;
+        fi
+        path=`echo "$allresources" | yq r -d $count - patches[$count2].path`
+        if [ ! -z "$path" ] && [ "$path" != "null" ]; then
+           path="$curdir"/$path 
+           allresources=`echo "$allresources" | yq w -d $count - patches[$count2].path "$path"`
+        fi
+        count2=$(expr $count2 + 1)
+      done 
+    fi 
+  fi
+  count=$(expr $count + 1)
+done
+echo "$allresources"
