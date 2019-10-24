@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+
+build="false"
+
+for var in "$@"
+do
+  if [ "$var" = "build" ]; then
+    build="true"
+  fi
+done
+if [ "$build" = "true" ]; then
+  /usr/local/bin/kustomize.cmd "$@" --enable_alpha_plugins --load_restrictor=none
+else
+  /usr/local/bin/kustomize.cmd "$@"
+fi
