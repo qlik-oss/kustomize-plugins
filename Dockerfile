@@ -14,6 +14,8 @@ ENV GO111MODULE=off
 RUN go get github.com/hairyhenderson/gomplate/cmd/gomplate
 RUN go get gopkg.in/mikefarah/yq.v2
 RUN mv /go/bin/yq.v2 /go/bin/yq
+RUN mv /go/bin/kustomize /go/bin/kustomize.cmd
+RUN mv /go/src/qlik-oss/kustomize-plugins/kustomize.wrapper /go/bin/kustomize
 
 FROM debian:stretch
 
