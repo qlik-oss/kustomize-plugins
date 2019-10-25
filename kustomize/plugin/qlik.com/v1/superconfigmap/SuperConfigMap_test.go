@@ -503,9 +503,10 @@ prefix: some-service-
 							assert.NotNil(t, tempRes)
 							assert.True(t, tempRes.NeedHashSuffix())
 
+							tempRes.SetName(fmt.Sprintf("some-service-%s", tempRes.GetName()))
 							hash, err := KustomizePlugin.Hasher.Hash(tempRes)
 							assert.NoError(t, err)
-							assert.Equal(t, fmt.Sprintf("some-service-%s-%s", tempRes.GetName(), hash), refName)
+							assert.Equal(t, fmt.Sprintf("%s-%s", tempRes.GetName(), hash), refName)
 
 							break
 						}

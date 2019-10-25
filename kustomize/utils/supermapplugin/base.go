@@ -75,6 +75,7 @@ func (b *Base) executeAssumeWillExistTransform(m resmap.ResMap) error {
 		b.Decorator.GetLogger().Printf("%v\n", err)
 		return err
 	}
+
 	if len(b.AssumeTargetInKustomizationPath) > 0 {
 		b.Decorator.GetLogger().Printf("augmenting temp resource: %v based on kustomization path: %v\n", b.Decorator.GetName(), b.AssumeTargetInKustomizationPath)
 		err = b.augmentBasedOnKustomizationPath(tempResource)
@@ -83,20 +84,26 @@ func (b *Base) executeAssumeWillExistTransform(m resmap.ResMap) error {
 			return err
 		}
 	}
+
 	err = m.Append(tempResource)
 	if err != nil {
 		b.Decorator.GetLogger().Printf("error appending temp resource: %v to the resource map, error: %v\n", b.Decorator.GetName(), err)
 		return err
 	}
-	updatedName, err := b.generateNameWithHash(tempResource)
+
+	resourceName := b.Decorator.GetName()
+	if len(b.Prefix) > 0 {
+		resourceName = fmt.Sprintf("%s%s", b.Prefix, resourceName)
+	}
+	tempResource.SetName(resourceName)
+
+	nameWithHash, err := b.generateNameWithHash(tempResource)
 	if err != nil {
-		b.Decorator.GetLogger().Printf("error hashing resource: %v, error: %v\n", b.Decorator.GetName(), err)
+		b.Decorator.GetLogger().Printf("error hashing resource: %v, error: %v\n", resourceName, err)
 		return err
 	}
-	if len(b.Prefix) > 0 {
-		updatedName = fmt.Sprintf("%s%s", b.Prefix, updatedName)
-	}
-	tempResource.SetName(updatedName)
+	tempResource.SetName(nameWithHash)
+
 	err = b.executeNameReferencesTransformer(m)
 	if err != nil {
 		b.Decorator.GetLogger().Printf("error executing nameReferenceTransformer.Transform(): %v\n", err)
