@@ -66,6 +66,7 @@ disableNameSuffixHash: true
 					if res.GetKind() == "Secret" {
 						foundSecretResource = true
 						assert.Equal(t, "mySecret", res.GetName())
+						assert.False(t, res.NeedHashSuffix())
 
 						data, err := res.GetFieldValue("data")
 						assert.NoError(t, err)
@@ -79,20 +80,6 @@ disableNameSuffixHash: true
 					}
 				}
 				assert.True(t, foundSecretResource)
-
-				foundDeployment := false
-				for _, res := range resMap.Resources() {
-					if res.GetKind() == "Deployment" {
-						foundDeployment = true
-
-						value, err := res.GetFieldValue("spec.template.spec.volumes[0].secret.secretName")
-						assert.NoError(t, err)
-						assert.Equal(t, "mySecret", value)
-
-						break
-					}
-				}
-				assert.True(t, foundDeployment)
 			},
 		},
 		{
@@ -116,6 +103,7 @@ disableNameSuffixHash: true
 					if res.GetKind() == "Secret" {
 						foundSecretResource = true
 						assert.Equal(t, "mySecret", res.GetName())
+						assert.False(t, res.NeedHashSuffix())
 
 						data, err := res.GetFieldValue("data")
 						assert.NoError(t, err)
@@ -141,20 +129,6 @@ disableNameSuffixHash: true
 					}
 				}
 				assert.True(t, foundSecretResource)
-
-				foundDeployment := false
-				for _, res := range resMap.Resources() {
-					if res.GetKind() == "Deployment" {
-						foundDeployment = true
-
-						value, err := res.GetFieldValue("spec.template.spec.volumes[0].secret.secretName")
-						assert.NoError(t, err)
-						assert.Equal(t, "mySecret", value)
-
-						break
-					}
-				}
-				assert.True(t, foundDeployment)
 			},
 		},
 		{
@@ -167,14 +141,13 @@ metadata:
 `,
 			pluginInputResources: pluginInputResources,
 			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
-				newSecretName := ""
+				foundSecretResource := false
 				for _, res := range resMap.Resources() {
 					if res.GetKind() == "Secret" {
-						newSecretName = res.GetName()
+						foundSecretResource = true
 
-						match, err := regexp.MatchString("^mySecret-[0-9a-z]+$", newSecretName)
-						assert.NoError(t, err)
-						assert.True(t, match)
+						assert.Equal(t, "mySecret", res.GetName())
+						assert.True(t, res.NeedHashSuffix())
 
 						data, err := res.GetFieldValue("data")
 						assert.NoError(t, err)
@@ -187,22 +160,7 @@ metadata:
 						break
 					}
 				}
-				assert.True(t, len(newSecretName) > 0)
-
-				foundDeployment := false
-				for _, res := range resMap.Resources() {
-					if res.GetKind() == "Deployment" {
-						foundDeployment = true
-
-						value, err := res.GetFieldValue("spec.template.spec.volumes[0].secret.secretName")
-						assert.NoError(t, err)
-						assert.Equal(t, newSecretName, value)
-
-						break
-					}
-				}
-
-				assert.True(t, foundDeployment)
+				assert.True(t, foundSecretResource)
 			},
 		},
 		{
@@ -220,14 +178,13 @@ data:
 `,
 			pluginInputResources: pluginInputResources,
 			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
-				newSecretName := ""
+				foundSecretResource := false
 				for _, res := range resMap.Resources() {
 					if res.GetKind() == "Secret" {
-						newSecretName = res.GetName()
+						foundSecretResource = true
 
-						match, err := regexp.MatchString("^mySecret-[0-9a-z]+$", newSecretName)
-						assert.NoError(t, err)
-						assert.True(t, match)
+						assert.Equal(t, "mySecret", res.GetName())
+						assert.True(t, res.NeedHashSuffix())
 
 						data, err := res.GetFieldValue("data")
 						assert.NoError(t, err)
@@ -252,22 +209,7 @@ data:
 						break
 					}
 				}
-				assert.True(t, len(newSecretName) > 0)
-
-				foundDeployment := false
-				for _, res := range resMap.Resources() {
-					if res.GetKind() == "Deployment" {
-						foundDeployment = true
-
-						value, err := res.GetFieldValue("spec.template.spec.volumes[0].secret.secretName")
-						assert.NoError(t, err)
-						assert.Equal(t, newSecretName, value)
-
-						break
-					}
-				}
-
-				assert.True(t, foundDeployment)
+				assert.True(t, foundSecretResource)
 			},
 		},
 	}

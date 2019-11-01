@@ -62,6 +62,7 @@ disableNameSuffixHash: true
 					if res.GetKind() == "ConfigMap" {
 						foundConfigMapResource = true
 						assert.Equal(t, "my-config-map", res.GetName())
+						assert.False(t, res.NeedHashSuffix())
 
 						data, err := res.GetFieldValue("data")
 						assert.NoError(t, err)
@@ -75,20 +76,6 @@ disableNameSuffixHash: true
 					}
 				}
 				assert.True(t, foundConfigMapResource)
-
-				foundDeploymentResource := false
-				for _, res := range resMap.Resources() {
-					if res.GetKind() == "Deployment" {
-						foundDeploymentResource = true
-
-						value, err := res.GetFieldValue("spec.template.spec.containers[0].env[0].valueFrom.configMapKeyRef.name")
-						assert.NoError(t, err)
-						assert.Equal(t, "my-config-map", value)
-
-						break
-					}
-				}
-				assert.True(t, foundDeploymentResource)
 			},
 		},
 		{
@@ -110,6 +97,7 @@ disableNameSuffixHash: true
 					if res.GetKind() == "ConfigMap" {
 						foundConfigMapResource = true
 						assert.Equal(t, "my-config-map", res.GetName())
+						assert.False(t, res.NeedHashSuffix())
 
 						data, err := res.GetFieldValue("data")
 						assert.NoError(t, err)
@@ -131,20 +119,6 @@ disableNameSuffixHash: true
 					}
 				}
 				assert.True(t, foundConfigMapResource)
-
-				foundDeploymentResource := false
-				for _, res := range resMap.Resources() {
-					if res.GetKind() == "Deployment" {
-						foundDeploymentResource = true
-
-						value, err := res.GetFieldValue("spec.template.spec.containers[0].env[0].valueFrom.configMapKeyRef.name")
-						assert.NoError(t, err)
-						assert.Equal(t, "my-config-map", value)
-
-						break
-					}
-				}
-				assert.True(t, foundDeploymentResource)
 			},
 		},
 		{
@@ -157,16 +131,13 @@ metadata:
 `,
 			pluginInputResources: pluginInputResources,
 			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
-				newConfigMapName := ""
 				foundConfigMapResource := false
 				for _, res := range resMap.Resources() {
 					if res.GetKind() == "ConfigMap" {
 						foundConfigMapResource = true
-						newConfigMapName = res.GetName()
 
-						match, err := regexp.MatchString("^my-config-map-[0-9a-z]+$", newConfigMapName)
-						assert.NoError(t, err)
-						assert.True(t, match)
+						assert.Equal(t, "my-config-map", res.GetName())
+						assert.True(t, res.NeedHashSuffix())
 
 						data, err := res.GetFieldValue("data")
 						assert.NoError(t, err)
@@ -180,21 +151,6 @@ metadata:
 					}
 				}
 				assert.True(t, foundConfigMapResource)
-				assert.True(t, len(newConfigMapName) > 0)
-
-				foundDeploymentResource := false
-				for _, res := range resMap.Resources() {
-					if res.GetKind() == "Deployment" {
-						foundDeploymentResource = true
-
-						value, err := res.GetFieldValue("spec.template.spec.containers[0].env[0].valueFrom.configMapKeyRef.name")
-						assert.NoError(t, err)
-						assert.Equal(t, newConfigMapName, value)
-
-						break
-					}
-				}
-				assert.True(t, foundDeploymentResource)
 			},
 		},
 		{
@@ -210,16 +166,13 @@ data:
 `,
 			pluginInputResources: pluginInputResources,
 			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
-				newConfigMapName := ""
 				foundConfigMapResource := false
 				for _, res := range resMap.Resources() {
 					if res.GetKind() == "ConfigMap" {
 						foundConfigMapResource = true
-						newConfigMapName = res.GetName()
 
-						match, err := regexp.MatchString("^my-config-map-[0-9a-z]+$", newConfigMapName)
-						assert.NoError(t, err)
-						assert.True(t, match)
+						assert.Equal(t, "my-config-map", res.GetName())
+						assert.True(t, res.NeedHashSuffix())
 
 						data, err := res.GetFieldValue("data")
 						assert.NoError(t, err)
@@ -241,21 +194,6 @@ data:
 					}
 				}
 				assert.True(t, foundConfigMapResource)
-				assert.True(t, len(newConfigMapName) > 0)
-
-				foundDeploymentResource := false
-				for _, res := range resMap.Resources() {
-					if res.GetKind() == "Deployment" {
-						foundDeploymentResource = true
-
-						value, err := res.GetFieldValue("spec.template.spec.containers[0].env[0].valueFrom.configMapKeyRef.name")
-						assert.NoError(t, err)
-						assert.Equal(t, newConfigMapName, value)
-
-						break
-					}
-				}
-				assert.True(t, foundDeploymentResource)
 			},
 		},
 	}
