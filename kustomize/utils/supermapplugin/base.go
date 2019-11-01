@@ -8,15 +8,15 @@ import (
 	"sigs.k8s.io/kustomize/v3/k8sdeps/transformer"
 	"sigs.k8s.io/kustomize/v3/k8sdeps/validator"
 	"sigs.k8s.io/kustomize/v3/pkg/fs"
+	"sigs.k8s.io/kustomize/v3/pkg/ifc"
 	"sigs.k8s.io/kustomize/v3/pkg/loader"
 	"sigs.k8s.io/kustomize/v3/pkg/plugins"
+	"sigs.k8s.io/kustomize/v3/pkg/resmap"
 	"sigs.k8s.io/kustomize/v3/pkg/resource"
 	"sigs.k8s.io/kustomize/v3/pkg/target"
 	"sigs.k8s.io/kustomize/v3/pkg/transformers"
 	"sigs.k8s.io/kustomize/v3/pkg/transformers/config"
-
-	"sigs.k8s.io/kustomize/v3/pkg/ifc"
-	"sigs.k8s.io/kustomize/v3/pkg/resmap"
+	"sigs.k8s.io/kustomize/v3/pkg/types"
 )
 
 type IDecorator interface {
@@ -162,35 +162,22 @@ func (b *Base) processKustomizationPath(kustomizationPath string) (resmap.ResMap
 func (b *Base) executeBasicTransform(resource *resource.Resource, m resmap.ResMap) error {
 	b.Decorator.GetLogger().Printf("executeBasicTransform() for resource: %v...\n", resource)
 
-	var updatedName string
-	var err error
 	if err := b.appendData(resource, b.Decorator.GetConfigData(), false); err != nil {
 		b.Decorator.GetLogger().Printf("error appending data to resource: %v, error: %v\n", b.Decorator.GetName(), err)
 		return err
 	}
-	if !b.Decorator.GetDisableNameSuffixHash() {
-		updatedName, err = b.generateNameWithHash(resource)
-		if err != nil {
-			b.Decorator.GetLogger().Printf("error hashing resource: %v, error: %v\n", b.Decorator.GetName(), err)
-			return err
-		}
-	}
-	if len(updatedName) > 0 {
-		//if err := m.Remove(resource.CurId()); err != nil {
-		//	b.Decorator.GetLogger().Printf("error removing original resource on name change: %v\n", err)
-		//	return err
-		//}
-		//newResource := b.Rf.RF().FromMap(resource.Map())
-		//if err := m.Append(newResource); err != nil {
-		//	b.Decorator.GetLogger().Printf("error re-adding resource on name change: %v\n", err)
-		//	return err
-		//}
 
-		resource.SetName(updatedName)
-		if err := b.executeNameReferencesTransformer(m); err != nil {
-			b.Decorator.GetLogger().Printf("error executing nameReferenceTransformer.Transform(): %v\n", err)
+	if !b.Decorator.GetDisableNameSuffixHash() {
+		if err := m.Remove(resource.CurId()); err != nil {
+			b.Decorator.GetLogger().Printf("error removing original resource on name change: %v\n", err)
 			return err
 		}
+		newResource := b.Rf.RF().FromMapAndOption(resource.Map(), &types.GeneratorArgs{Behavior: "replace"}, &types.GeneratorOptions{DisableNameSuffixHash: false})
+		if err := m.Append(newResource); err != nil {
+			b.Decorator.GetLogger().Printf("error re-adding resource on name change: %v\n", err)
+			return err
+		}
+		b.Decorator.GetLogger().Printf("resource should have hashing enabled: %v\n", newResource)
 	}
 	return nil
 }
