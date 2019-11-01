@@ -176,15 +176,15 @@ func (b *Base) executeBasicTransform(resource *resource.Resource, m resmap.ResMa
 		}
 	}
 	if len(updatedName) > 0 {
-		if err := m.Remove(resource.CurId()); err != nil {
-			b.Decorator.GetLogger().Printf("error removing original resource on name change: %v\n", err)
-			return err
-		}
-		newResource := b.Rf.RF().FromMap(resource.Map())
-		if err := m.Append(newResource); err != nil {
-			b.Decorator.GetLogger().Printf("error re-adding resource on name change: %v\n", err)
-			return err
-		}
+		//if err := m.Remove(resource.CurId()); err != nil {
+		//	b.Decorator.GetLogger().Printf("error removing original resource on name change: %v\n", err)
+		//	return err
+		//}
+		//newResource := b.Rf.RF().FromMap(resource.Map())
+		//if err := m.Append(newResource); err != nil {
+		//	b.Decorator.GetLogger().Printf("error re-adding resource on name change: %v\n", err)
+		//	return err
+		//}
 
 		resource.SetName(updatedName)
 		if err := b.executeNameReferencesTransformer(m); err != nil {
