@@ -35,6 +35,11 @@ func (p *plugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []byte) (err error
 		logger.Printf("error unmarshalling yaml, error: %v\n", err)
 		return err
 	}
+	err = p.Base.SetupTransformerConfig(ldr)
+	if err != nil {
+		logger.Printf("error setting up transformer config, error: %v\n", err)
+		return err
+	}
 	return p.ConfigMapGeneratorPlugin.Config(ldr, rf, c)
 }
 

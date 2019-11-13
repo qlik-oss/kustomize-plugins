@@ -36,6 +36,8 @@ type Base struct {
 	Rf                              *resmap.Factory
 	Hasher                          ifc.KunstructuredHasher
 	Decorator                       IDecorator
+	Configurations                  []string `json:"configurations,omitempty" yaml:"configurations,omitempty"`
+	tConfig                         *config.TransformerConfig
 }
 
 func NewBase(rf *resmap.Factory, decorator IDecorator) Base {
@@ -46,7 +48,24 @@ func NewBase(rf *resmap.Factory, decorator IDecorator) Base {
 		Rf:                              rf,
 		Decorator:                       decorator,
 		Hasher:                          rf.RF().Hasher(),
+		Configurations:                  make([]string, 0),
+		tConfig:                         nil,
 	}
+}
+
+func (b *Base) SetupTransformerConfig(ldr ifc.Loader) error {
+	b.tConfig = &config.TransformerConfig{}
+	tCustomConfig, err := config.MakeTransformerConfig(ldr, b.Configurations)
+	if err != nil {
+		b.Decorator.GetLogger().Printf("error making transformer config, error: %v\n", err)
+		return err
+	}
+	b.tConfig, err = b.tConfig.Merge(tCustomConfig)
+	if err != nil {
+		b.Decorator.GetLogger().Printf("error merging transformer config, error: %v\n", err)
+		return err
+	}
+	return nil
 }
 
 func (b *Base) Transform(m resmap.ResMap) error {
@@ -183,8 +202,7 @@ func (b *Base) executeBasicTransform(resource *resource.Resource, m resmap.ResMa
 }
 
 func (b *Base) executeNameReferencesTransformer(m resmap.ResMap) error {
-	defaultTransformerConfig := config.MakeDefaultConfig()
-	nameReferenceTransformer := transformers.NewNameReferenceTransformer(defaultTransformerConfig.NameReference)
+	nameReferenceTransformer := transformers.NewNameReferenceTransformer(b.tConfig.NameReference)
 	return nameReferenceTransformer.Transform(m)
 }
 
