@@ -11,6 +11,7 @@ COPY . /go/src/qlik-oss/kustomize-plugins/
 RUN cd /go/src/qlik-oss/kustomize-plugins && make
 RUN find /go/src/qlik-oss/kustomize-plugins -name \*.so -exec cp --parents \{} /tmp \;
 RUN go get github.com/mikefarah/yq@2.4.1
+RUN go install github.com/vmware-tanzu/sonobuoy/
 ENV GO111MODULE=off
 RUN go get github.com/hairyhenderson/gomplate/cmd/gomplate
 RUN mv /go/bin/kustomize /go/bin/kustomize.cmd
