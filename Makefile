@@ -1,4 +1,4 @@
-versionOfKustomizeCLI := v3.2.3
+versionOfKustomizeCLI := v3.4.0
 
 install:
 	./scripts/buildKustomizeCLI.sh ${versionOfKustomizeCLI}
