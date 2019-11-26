@@ -16,7 +16,16 @@ RUN go get github.com/hairyhenderson/gomplate/cmd/gomplate
 RUN mv /go/bin/kustomize /go/bin/kustomize.cmd
 RUN mv /go/src/qlik-oss/kustomize-plugins/kustomize.wrapper /go/bin/kustomize
 
-FROM debian:stretch
+
+FROM golang:stretch
 
 COPY --from=build /go/bin /usr/local/bin
 COPY --from=build /tmp/go/src/qlik-oss/kustomize-plugins/kustomize /root/.config/kustomize
+
+# ENV KUBECTL_VER 1.15.0
+# RUN curl -Lo /go/bin/kubectl https://storage.googleapis.com/kubernetes-release/release/v${KUBECTL_VER}/bin/linux/amd64/kubectl \
+#     && chmod +x /go/bin/kubectl
+RUN curl -Lo kubeval-linux-amd64.tar.gz https://github.com/instrumenta/kubeval/releases/latest/download/kubeval-linux-amd64.tar.gz
+RUN tar xf kubeval-linux-amd64.tar.gz
+RUN cp kubeval /usr/local/bin
+COPY FullPath /root/.config/kustomize/plugin/qlik.com/v1/fullpath/
