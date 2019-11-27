@@ -4,18 +4,18 @@ import (
 	"fmt"
 	"log"
 
+	"sigs.k8s.io/kustomize/api/builtins"
+	"sigs.k8s.io/kustomize/api/resmap"
+
 	"github.com/qlik-oss/kustomize-plugins/kustomize/utils"
 	"github.com/qlik-oss/kustomize-plugins/kustomize/utils/supermapplugin"
 
-	"sigs.k8s.io/kustomize/v3/pkg/ifc"
-	"sigs.k8s.io/kustomize/v3/pkg/resmap"
-	"sigs.k8s.io/kustomize/v3/plugin/builtin"
 	"sigs.k8s.io/yaml"
 )
 
 type plugin struct {
 	Data map[string]string `json:"data,omitempty" yaml:"data,omitempty"`
-	builtin.ConfigMapGeneratorPlugin
+	builtins.ConfigMapGeneratorPlugin
 	supermapplugin.Base
 }
 
@@ -27,20 +27,20 @@ func init() {
 	logger = utils.GetLogger("SuperConfigMap")
 }
 
-func (p *plugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []byte) (err error) {
-	p.Base = supermapplugin.NewBase(rf, p)
+func (p *plugin) Config(h *resmap.PluginHelpers, c []byte) error {
+	p.Base = supermapplugin.NewBase(h.ResmapFactory(), p)
 	p.Data = make(map[string]string)
-	err = yaml.Unmarshal(c, p)
+	err := yaml.Unmarshal(c, p)
 	if err != nil {
 		logger.Printf("error unmarshalling yaml, error: %v\n", err)
 		return err
 	}
-	err = p.Base.SetupTransformerConfig(ldr)
+	err = p.Base.SetupTransformerConfig(h.Loader())
 	if err != nil {
 		logger.Printf("error setting up transformer config, error: %v\n", err)
 		return err
 	}
-	return p.ConfigMapGeneratorPlugin.Config(ldr, rf, c)
+	return p.ConfigMapGeneratorPlugin.Config(h, c)
 }
 
 func (p *plugin) Generate() (resmap.ResMap, error) {

@@ -1,6 +1,6 @@
 module github.com/qlik-oss/kustomize-plugins/kustomize/plugin/qlik.com/v1/helmvalues
 
-go 1.12
+go 1.13
 
 require (
 	github.com/imdario/mergo v0.3.8

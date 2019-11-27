@@ -4,13 +4,12 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log"
+	"sigs.k8s.io/kustomize/api/builtins"
+	"sigs.k8s.io/kustomize/api/resmap"
 
 	"github.com/qlik-oss/kustomize-plugins/kustomize/utils"
 	"github.com/qlik-oss/kustomize-plugins/kustomize/utils/supermapplugin"
 
-	"sigs.k8s.io/kustomize/v3/pkg/ifc"
-	"sigs.k8s.io/kustomize/v3/pkg/resmap"
-	"sigs.k8s.io/kustomize/v3/plugin/builtin"
 	"sigs.k8s.io/yaml"
 )
 
@@ -18,7 +17,7 @@ type plugin struct {
 	StringData          map[string]string `json:"stringData,omitempty" yaml:"stringData,omitempty"`
 	Data                map[string]string `json:"data,omitempty" yaml:"data,omitempty"`
 	aggregateConfigData map[string]string
-	builtin.SecretGeneratorPlugin
+	builtins.SecretGeneratorPlugin
 	supermapplugin.Base
 }
 
@@ -30,11 +29,11 @@ func init() {
 	logger = utils.GetLogger("SuperSecret")
 }
 
-func (p *plugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []byte) (err error) {
-	p.Base = supermapplugin.NewBase(rf, p)
+func (p *plugin) Config(h *resmap.PluginHelpers, c []byte) error {
+	p.Base = supermapplugin.NewBase(h.ResmapFactory(), p)
 	p.Data = make(map[string]string)
 	p.StringData = make(map[string]string)
-	err = yaml.Unmarshal(c, p)
+	err := yaml.Unmarshal(c, p)
 	if err != nil {
 		logger.Printf("error unmarshalling yaml, error: %v\n", err)
 		return err
@@ -44,12 +43,12 @@ func (p *plugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []byte) (err error
 		logger.Printf("error accumulating config data: %v\n", err)
 		return err
 	}
-	err = p.Base.SetupTransformerConfig(ldr)
+	err = p.Base.SetupTransformerConfig(h.Loader())
 	if err != nil {
 		logger.Printf("error setting up transformer config, error: %v\n", err)
 		return err
 	}
-	return p.SecretGeneratorPlugin.Config(ldr, rf, c)
+	return p.SecretGeneratorPlugin.Config(h, c)
 }
 
 func (p *plugin) getAggregateConfigData() (map[string]string, error) {
