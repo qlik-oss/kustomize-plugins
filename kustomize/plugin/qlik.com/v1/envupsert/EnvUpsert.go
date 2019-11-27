@@ -1,23 +1,21 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
-	"sigs.k8s.io/kustomize/v3/pkg/transformers"
 
 	"github.com/qlik-oss/kustomize-plugins/kustomize/utils"
-	"sigs.k8s.io/kustomize/v3/pkg/ifc"
-	"sigs.k8s.io/kustomize/v3/pkg/resmap"
-	"sigs.k8s.io/kustomize/v3/pkg/transformers/config"
-	"sigs.k8s.io/kustomize/v3/pkg/types"
-	"sigs.k8s.io/yaml"
+	"sigs.k8s.io/kustomize/api/resmap"
+	"sigs.k8s.io/kustomize/api/transform"
+	"sigs.k8s.io/kustomize/api/types"
+	v1 "sigs.k8s.io/kustomize/pseudo/k8s/api/core/v1"
+	"sigs.k8s.io/kustomize/pseudo/k8s/apimachinery/pkg/util/yaml"
 )
 
 type EnvVarType struct {
-	Name      *string                `json:"name,omitempty" yaml:"name,omitempty"`
-	Value     *string                `json:"value,omitempty" yaml:"value,omitempty"`
-	ValueFrom map[string]interface{} `json:"valueFrom,omitempty" yaml:"valueFrom,omitempty"`
-	Delete    bool                   `json:"delete,omitempty" yaml:"delete,omitempty"`
+	v1.EnvVar
+	Delete bool `json:"delete,omitempty" yaml:"delete,omitempty"`
 }
 
 type plugin struct {
@@ -25,7 +23,7 @@ type plugin struct {
 	Target    *types.Selector `json:"target,omitempty" yaml:"target,omitempty"`
 	Path      string          `json:"path,omitempty" yaml:"path,omitempty"`
 	EnvVars   []EnvVarType    `json:"env,omitempty" yaml:"env,omitempty"`
-	fieldSpec config.FieldSpec
+	fieldSpec types.FieldSpec
 }
 
 var KustomizePlugin plugin
@@ -36,32 +34,35 @@ func init() {
 	logger = utils.GetLogger("EnvUpsert")
 }
 
-func (p *plugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []byte) (err error) {
+func (p *plugin) Config(h *resmap.PluginHelpers, c []byte) error {
 	p.Enabled = false
 	p.Target = nil
 	p.Path = ""
 	p.EnvVars = make([]EnvVarType, 0)
-	err = yaml.Unmarshal(c, p)
-	if err != nil {
-		logger.Printf("error unmarshalling config from yaml, error: %v\n", err)
+
+	if jsonBytes, err := yaml.ToJSON(c); err != nil {
+		logger.Printf("error converting yaml to json, error: %v\n", err)
+		return err
+	} else if err := json.Unmarshal(jsonBytes, &p); err != nil {
+		logger.Printf("error unmarshalling config from json, error: %v\n", err)
 		return err
 	}
 	if p.Target == nil {
 		return fmt.Errorf("must specify a target in the config for the environment variables upsert")
 	}
 	for _, envVar := range p.EnvVars {
-		if envVar.Name == nil {
-			err = fmt.Errorf("env var config has no name: %v", envVar)
+		if envVar.Name == "" {
+			err := fmt.Errorf("env var config has no name: %v", envVar)
 			logger.Printf("config error: %v\n", err)
 			return err
 		}
-		if envVar.Value == nil && envVar.ValueFrom == nil && !envVar.Delete {
-			err = fmt.Errorf("env var config has no value or valueFrom: %v", envVar)
+		if envVar.Value == "" && envVar.ValueFrom == nil && !envVar.Delete {
+			err := fmt.Errorf("env var config has no value or valueFrom: %v", envVar)
 			logger.Printf("config error: %v\n", err)
 			return err
 		}
 	}
-	p.fieldSpec = config.FieldSpec{Path: p.Path}
+	p.fieldSpec = types.FieldSpec{Path: p.Path}
 	return nil
 }
 
@@ -74,7 +75,7 @@ func (p *plugin) Transform(m resmap.ResMap) error {
 			return err
 		}
 		for _, r := range resources {
-			err := transformers.MutateField(
+			err := transform.MutateField(
 				r.Map(),
 				p.fieldSpec.PathSlice(),
 				false,
@@ -98,7 +99,7 @@ func (p *plugin) upsertEnvironmentVariables(in interface{}) (interface{}, error)
 				if ok {
 					name, ok := presentEnvVar["name"].(string)
 					if ok {
-						if name == *envVar.Name {
+						if name == envVar.Name {
 							foundMatching = true
 							if envVar.Delete {
 								//delete:
@@ -106,7 +107,10 @@ func (p *plugin) upsertEnvironmentVariables(in interface{}) (interface{}, error)
 								i--
 							} else {
 								//update:
-								p.setEnvVar(presentEnvVar, envVar)
+								if err := p.setEnvVar(presentEnvVar, envVar); err != nil {
+									logger.Printf("error executing p.setEnvVar(), error: %v\n", err)
+									return nil, err
+								}
 							}
 							break
 						}
@@ -116,9 +120,12 @@ func (p *plugin) upsertEnvironmentVariables(in interface{}) (interface{}, error)
 			if !foundMatching && !envVar.Delete {
 				//insert:
 				newEnvVar := map[string]interface{}{
-					"name": *envVar.Name,
+					"name": envVar.Name,
 				}
-				p.setEnvVar(newEnvVar, envVar)
+				if err := p.setEnvVar(newEnvVar, envVar); err != nil {
+					logger.Printf("error executing p.setEnvVar(), error: %v\n", err)
+					return nil, err
+				}
 				presentEnvVars = append(presentEnvVars, newEnvVar)
 			}
 		}
@@ -127,10 +134,17 @@ func (p *plugin) upsertEnvironmentVariables(in interface{}) (interface{}, error)
 	return in, nil
 }
 
-func (p *plugin) setEnvVar(setEnvVar map[string]interface{}, fromEnvVar EnvVarType) {
-	if fromEnvVar.Value != nil {
-		setEnvVar["value"] = *fromEnvVar.Value
-	} else if fromEnvVar.ValueFrom != nil {
-		setEnvVar["valueFrom"] = fromEnvVar.ValueFrom
+func (p *plugin) setEnvVar(setEnvVar map[string]interface{}, fromEnvVar EnvVarType) error {
+	if fromEnvVar.ValueFrom != nil {
+		var valueFrom map[string]interface{}
+		if bytes, err := json.Marshal(fromEnvVar.ValueFrom); err != nil {
+			return err
+		} else if err := json.Unmarshal(bytes, &valueFrom); err != nil {
+			return err
+		}
+		setEnvVar["valueFrom"] = valueFrom
+	} else {
+		setEnvVar["value"] = fromEnvVar.Value
 	}
+	return nil
 }

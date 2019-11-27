@@ -11,10 +11,9 @@ import (
 	"path/filepath"
 
 	"github.com/qlik-oss/kustomize-plugins/kustomize/utils"
-
-	"sigs.k8s.io/kustomize/v3/pkg/ifc"
-	"sigs.k8s.io/kustomize/v3/pkg/resmap"
-	"sigs.k8s.io/yaml"
+	"gopkg.in/yaml.v2"
+	"sigs.k8s.io/kustomize/api/ifc"
+	"sigs.k8s.io/kustomize/api/resmap"
 )
 
 type plugin struct {
@@ -30,7 +29,7 @@ type plugin struct {
 	ReleaseNamespace string                 `json:"releaseNamespace,omitempty" yaml:"releaseNamespace,omitempty"`
 	ExtraArgs        string                 `json:"extraArgs,omitempty" yaml:"extraArgs,omitempty"`
 	ChartPatches     string                 `json:"chartPatches,omitempty" yaml:"chartPatches,omitempty"`
-	SubChart         string       			`json:"subChart,omitempty" yaml:"subChart,omitempty"`
+	SubChart         string                 `json:"subChart,omitempty" yaml:"subChart,omitempty"`
 	ChartVersionExp  string
 	ldr              ifc.Loader
 	rf               *resmap.Factory
@@ -45,9 +44,9 @@ func init() {
 	logger = utils.GetLogger("HelmChart")
 }
 
-func (p *plugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []byte) (err error) {
-	p.ldr = ldr
-	p.rf = rf
+func (p *plugin) Config(h *resmap.PluginHelpers, c []byte) error {
+	p.ldr = h.Loader()
+	p.rf = h.ResmapFactory()
 	return yaml.Unmarshal(c, p)
 }
 
@@ -244,7 +243,7 @@ func (p *plugin) templateHelm() ([]byte, error) {
 	nameSpace := fmt.Sprintf("--namespace=%s", p.ReleaseNamespace)
 	chart := p.ChartHome
 	if len(p.SubChart) > 0 {
-		chart = p.ChartHome+ "/charts/" + p.SubChart
+		chart = p.ChartHome + "/charts/" + p.SubChart
 	}
 	helmCmd := exec.Command("helm", "template", home, values, name, nameSpace, chart)
 

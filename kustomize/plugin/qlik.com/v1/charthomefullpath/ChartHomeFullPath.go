@@ -7,18 +7,18 @@ import (
 	"os"
 	"path"
 
-	"github.com/qlik-oss/kustomize-plugins/kustomize/utils"
-
-	"sigs.k8s.io/kustomize/v3/pkg/ifc"
-	"sigs.k8s.io/kustomize/v3/pkg/resmap"
 	"sigs.k8s.io/kustomize/v3/pkg/transformers"
-	"sigs.k8s.io/kustomize/v3/pkg/transformers/config"
-	"sigs.k8s.io/yaml"
+
+	"github.com/qlik-oss/kustomize-plugins/kustomize/utils"
+	"gopkg.in/yaml.v2"
+	"sigs.k8s.io/kustomize/api/ifc"
+	"sigs.k8s.io/kustomize/api/resmap"
+	"sigs.k8s.io/kustomize/api/types"
 )
 
 type plugin struct {
-	ChartHome  string             `json:"chartHome,omitempty" yaml:"chartHome,omitempty"`
-	FieldSpecs []config.FieldSpec `json:"fieldSpecs,omitempty" yaml:"fieldSpecs,omitempty"`
+	ChartHome  string            `json:"chartHome,omitempty" yaml:"chartHome,omitempty"`
+	FieldSpecs []types.FieldSpec `json:"fieldSpecs,omitempty" yaml:"fieldSpecs,omitempty"`
 	Root       string
 	ChartName  string
 	Kind       string
@@ -33,8 +33,8 @@ func init() {
 	logger = utils.GetLogger("ChartHomeFullPath")
 }
 
-func (p *plugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []byte) (err error) {
-	p.Root = ldr.Root()
+func (p *plugin) Config(h *resmap.PluginHelpers, c []byte) error {
+	p.Root = h.Loader().Root()
 	return yaml.Unmarshal(c, p)
 }
 

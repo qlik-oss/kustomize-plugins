@@ -2,16 +2,16 @@ package main
 
 import (
 	"fmt"
+
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/qlik-oss/kustomize-plugins/kustomize/utils/loadertest"
-	"sigs.k8s.io/kustomize/v3/k8sdeps/kunstruct"
-	"sigs.k8s.io/kustomize/v3/k8sdeps/transformer"
-	"sigs.k8s.io/kustomize/v3/pkg/resmap"
-	"sigs.k8s.io/kustomize/v3/pkg/resource"
+	"github.com/stretchr/testify/assert"
+	"sigs.k8s.io/kustomize/api/k8sdeps/kunstruct"
+	"sigs.k8s.io/kustomize/api/resmap"
+	"sigs.k8s.io/kustomize/api/resource"
+	valtest_test "sigs.k8s.io/kustomize/api/testutils/valtest"
 )
 
 func TestFullPath(t *testing.T) {
@@ -103,7 +103,7 @@ patches:
   - path: ../deployment.yaml
   - path: ../redis.yaml
 `,
-			loaderRootDir:        "/foo/bar",
+			loaderRootDir: "/foo/bar",
 			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
 				res := resMap.GetByIndex(0)
 				assert.NotNil(t, res)
@@ -147,15 +147,15 @@ fieldSpecs:
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			resourceFactory := resmap.NewFactory(resource.NewFactory(
-				kunstruct.NewKunstructuredFactoryImpl()), transformer.NewFactoryImpl())
+			resourceFactory := resmap.NewFactory(resource.NewFactory(kunstruct.NewKunstructuredFactoryImpl()), nil)
 
 			resMap, err := resourceFactory.NewResMapFromBytes([]byte(testCase.pluginInputResources))
 			if err != nil {
 				t.Fatalf("Err: %v", err)
 			}
 
-			err = KustomizePlugin.Config(loadertest.NewFakeLoader(testCase.loaderRootDir), resourceFactory, []byte(testCase.pluginConfig))
+			helpers := resmap.NewPluginHelpers(loadertest.NewFakeLoader(testCase.loaderRootDir), valtest_test.MakeHappyMapValidator(t), resourceFactory)
+			err = KustomizePlugin.Config(helpers, []byte(testCase.pluginConfig))
 			if err != nil {
 				t.Fatalf("Err: %v", err)
 			}

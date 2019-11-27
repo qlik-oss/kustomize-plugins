@@ -7,10 +7,9 @@ import (
 	"os"
 
 	"github.com/qlik-oss/kustomize-plugins/kustomize/utils"
-
-	"sigs.k8s.io/kustomize/v3/pkg/ifc"
-	"sigs.k8s.io/kustomize/v3/pkg/resmap"
-	"sigs.k8s.io/yaml"
+	"gopkg.in/yaml.v2"
+	"sigs.k8s.io/kustomize/api/ifc"
+	"sigs.k8s.io/kustomize/api/resmap"
 )
 
 type plugin struct {
@@ -29,10 +28,10 @@ func init() {
 	logger = utils.GetLogger("Gomplate")
 }
 
-func (p *plugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []byte) (err error) {
-	p.ldr = ldr
-	p.rf = rf
-	p.Pwd = ldr.Root()
+func (p *plugin) Config(h *resmap.PluginHelpers, c []byte) error {
+	p.ldr = h.Loader()
+	p.rf = h.ResmapFactory()
+	p.Pwd = h.Loader().Root()
 	return yaml.Unmarshal(c, p)
 }
 

@@ -1,16 +1,16 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/imdario/mergo"
 	"github.com/qlik-oss/kustomize-plugins/kustomize/utils"
-
-	"sigs.k8s.io/kustomize/v3/pkg/ifc"
-	"sigs.k8s.io/kustomize/v3/pkg/resmap"
-	"sigs.k8s.io/kustomize/v3/pkg/transformers"
-	"sigs.k8s.io/kustomize/v3/pkg/transformers/config"
-	"sigs.k8s.io/yaml"
+	"gopkg.in/yaml.v2"
+	"sigs.k8s.io/kustomize/api/ifc"
+	"sigs.k8s.io/kustomize/api/resmap"
+	"sigs.k8s.io/kustomize/api/transform"
+	"sigs.k8s.io/kustomize/api/types"
 )
 
 type plugin struct {
@@ -18,7 +18,7 @@ type plugin struct {
 	Chart            string                 `json:"chartName,omitempty" yaml:"chartName,omitempty"`
 	ReleaseName      string                 `json:"releaseName,omitempty" yaml:"releaseName,omitempty"`
 	ReleaseNamespace string                 `json:"releaseNamespace,omitempty" yaml:"releaseNamespace,omitempty"`
-	FieldSpecs       []config.FieldSpec     `json:"fieldSpecs,omitempty" yaml:"fieldSpecs,omitempty"`
+	FieldSpecs       []types.FieldSpec      `json:"fieldSpecs,omitempty" yaml:"fieldSpecs,omitempty"`
 	Values           map[string]interface{} `json:"values,omitempty" yaml:"values,omitempty"`
 	ValuesName       string
 }
@@ -32,7 +32,7 @@ func init() {
 	logger = utils.GetLogger("HelmValues")
 }
 
-func (p *plugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []byte) (err error) {
+func (p *plugin) Config(h *resmap.PluginHelpers, c []byte) error {
 	return yaml.Unmarshal(c, p)
 }
 
@@ -75,7 +75,7 @@ func (p *plugin) Transform(m resmap.ResMap) error {
 		if isHelmChart(r) {
 			if applyResources(r, p.Chart) {
 				pathToField := []string{"values"}
-				err := transformers.MutateField(
+				err := transform.MutateField(
 					r.Map(),
 					pathToField,
 					true,
@@ -94,7 +94,7 @@ func (p *plugin) Transform(m resmap.ResMap) error {
 		if p.Values[name] != nil && p.Values[name] != "null" {
 			p.ValuesName = name
 			pathToField := []string{"values", name}
-			err := transformers.MutateField(
+			err := transform.MutateField(
 				r.Map(),
 				pathToField,
 				true,
@@ -107,7 +107,7 @@ func (p *plugin) Transform(m resmap.ResMap) error {
 		}
 		if len(p.ReleaseNamespace) > 0 && p.ReleaseNamespace != "null" {
 			pathToField := []string{"releaseNamespace"}
-			err := transformers.MutateField(
+			err := transform.MutateField(
 				r.Map(),
 				pathToField,
 				true,
@@ -119,7 +119,7 @@ func (p *plugin) Transform(m resmap.ResMap) error {
 		}
 		if len(p.ReleaseName) > 0 && p.ReleaseName != "null" {
 			pathToField := []string{"releaseName"}
-			err := transformers.MutateField(
+			err := transform.MutateField(
 				r.Map(),
 				pathToField,
 				true,
@@ -153,5 +153,6 @@ func mergeValues(values1 interface{}, values2 interface{}, overwrite bool) error
 	if overwrite {
 		return mergo.Merge(values1, values2, mergo.WithOverride)
 	}
+	fmt.Printf("--AB: merging values1: %v, values2: %v\n", values1, values2)
 	return mergo.Merge(values1, values2)
 }

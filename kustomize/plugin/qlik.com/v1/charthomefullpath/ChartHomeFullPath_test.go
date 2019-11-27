@@ -5,14 +5,13 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	kusttest_test "sigs.k8s.io/kustomize/api/testutils/kusttest"
 
-	kusttest_test "sigs.k8s.io/kustomize/v3/pkg/kusttest"
-	plugins_test "sigs.k8s.io/kustomize/v3/pkg/plugins/test"
+	"github.com/stretchr/testify/require"
 )
 
 func TestChartHomeFullPathPlugin(t *testing.T) {
-	tc := plugins_test.NewEnvForTest(t).Set()
+	tc := kusttest_test.NewPluginTestEnv(t).Set()
 	defer tc.Reset()
 
 	// create a temp directory and test file
@@ -27,9 +26,8 @@ func TestChartHomeFullPathPlugin(t *testing.T) {
 	_, err = file.Write(fileContents)
 	require.NoError(t, err)
 
-	tc.BuildGoPlugin(
-		"qlik.com", "v1", "ChartHomeFullPath")
-	th := kusttest_test.NewKustTestPluginHarness(t, "/")
+	tc.BuildGoPlugin("qlik.com", "v1", "ChartHomeFullPath")
+	th := kusttest_test.NewKustTestHarnessAllowPlugins(t, "/")
 
 	// make temp directory chartHome
 	m := th.LoadAndRunTransformer(`

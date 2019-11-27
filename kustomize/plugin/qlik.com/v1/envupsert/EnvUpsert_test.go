@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"testing"
 
+	"sigs.k8s.io/kustomize/api/k8sdeps/kunstruct"
+	"sigs.k8s.io/kustomize/api/resmap"
+	"sigs.k8s.io/kustomize/api/resource"
+	valtest_test "sigs.k8s.io/kustomize/api/testutils/valtest"
+
 	"github.com/qlik-oss/kustomize-plugins/kustomize/utils/loadertest"
 	"github.com/stretchr/testify/assert"
-	"sigs.k8s.io/kustomize/v3/k8sdeps/kunstruct"
-	"sigs.k8s.io/kustomize/v3/k8sdeps/transformer"
-	"sigs.k8s.io/kustomize/v3/pkg/resmap"
-	"sigs.k8s.io/kustomize/v3/pkg/resource"
 )
 
 func TestEnvUpsert(t *testing.T) {
@@ -168,23 +169,23 @@ env:
 apiVersion: qlik.com/v1
 kind: Foo
 metadata:
- name: some-foo
+  name: some-foo
 fooSpec:
- fooTemplate:
-   fooContainers:
-   - name: have-env
-     env:
-       - name: FOO
-         valueFrom:
-           configMapKeyRef:
-             name: my-config-map
-             key: foo
-       - name: BAR
-         valueFrom:
-           configMapKeyRef:
-             name: my-config-map
-             key: bar
-   - name: dont-have-env
+  fooTemplate:
+    fooContainers:
+    - name: have-env
+      env:
+      - name: FOO
+        valueFrom:
+          configMapKeyRef:
+            name: my-config-map
+            key: foo
+      - name: BAR
+        valueFrom:
+          configMapKeyRef:
+            name: my-config-map
+            key: bar
+    - name: dont-have-env
 `,
 			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
 				res := resMap.GetByIndex(0)
@@ -229,8 +230,8 @@ metadata:
 fooSpec:
   fooTemplate:
     fooContainers:
-    - name: have-env
-      env:
+      - name: have-env
+        env:
         - name: FOO
           valueFrom:
             configMapKeyRef:
@@ -241,7 +242,7 @@ fooSpec:
             configMapKeyRef:
               name: my-config-map
               key: bar
-    - name: dont-have-env
+      - name: dont-have-env
 `,
 			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
 				res := resMap.GetByIndex(0)
@@ -279,13 +280,13 @@ target:
   name: some-foo
 path: fooSpec/fooTemplate/fooContainers/env
 env:
-- name: ABRA
-  value: CADABRA
-- name: BAZ
-  valueFrom:
-    configMapKeyRef:
-      name: baz-config-map
-      key: baz
+  - name: ABRA
+    value: CADABRA
+  - name: BAZ
+    valueFrom:
+      configMapKeyRef:
+        name: baz-config-map
+        key: baz
 `,
 			pluginInputResources: `
 apiVersion: qlik.com/v1
@@ -297,16 +298,16 @@ fooSpec:
     fooContainers:
     - name: have-env
       env:
-        - name: FOO
-          valueFrom:
-            configMapKeyRef:
-              name: my-config-map
-              key: foo
-        - name: BAR
-          valueFrom:
-            configMapKeyRef:
-              name: my-config-map
-              key: bar
+      - name: FOO
+        valueFrom:
+          configMapKeyRef:
+            name: my-config-map
+            key: foo
+      - name: BAR
+        valueFrom:
+          configMapKeyRef:
+            name: my-config-map
+            key: bar
     - name: dont-have-env
 `,
 			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
@@ -363,16 +364,16 @@ fooSpec:
     fooContainers:
     - name: have-env
       env:
-        - name: FOO
-          valueFrom:
-            configMapKeyRef:
-              name: my-config-map
-              key: foo
-        - name: BAR
-          valueFrom:
-            configMapKeyRef:
-              name: my-config-map
-              key: bar
+      - name: FOO
+        valueFrom:
+          configMapKeyRef:
+            name: my-config-map
+            key: foo
+      - name: BAR
+        valueFrom:
+          configMapKeyRef:
+            name: my-config-map
+            key: bar
     - name: dont-have-env
 `,
 			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
@@ -415,8 +416,8 @@ metadata:
 fooSpec:
   fooTemplate:
     fooContainers:
-    - name: have-env
-      env:
+      - name: have-env
+        env:
         - name: FIRST
           valueFrom:
             configMapKeyRef:
@@ -437,7 +438,7 @@ fooSpec:
             configMapKeyRef:
               name: my-config-map
               key: last
-    - name: dont-have-env
+      - name: dont-have-env
 `,
 			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
 				res := resMap.GetByIndex(0)
@@ -491,16 +492,16 @@ fooSpec:
     fooContainers:
     - name: have-env
       env:
-        - name: FOO
-          valueFrom:
-            configMapKeyRef:
-              name: my-config-map
-              key: foo
-        - name: BAR
-          valueFrom:
-            configMapKeyRef:
-              name: my-config-map
-              key: bar
+      - name: FOO
+        valueFrom:
+          configMapKeyRef:
+            name: my-config-map
+            key: foo
+      - name: BAR
+        valueFrom:
+          configMapKeyRef:
+            name: my-config-map
+            key: bar
     - name: dont-have-env
 `,
 			checkAssertions: func(t *testing.T, resMap resmap.ResMap) {
@@ -524,15 +525,15 @@ fooSpec:
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			resourceFactory := resmap.NewFactory(resource.NewFactory(
-				kunstruct.NewKunstructuredFactoryImpl()), transformer.NewFactoryImpl())
+			resourceFactory := resmap.NewFactory(resource.NewFactory(kunstruct.NewKunstructuredFactoryImpl()), nil)
 
 			resMap, err := resourceFactory.NewResMapFromBytes([]byte(testCase.pluginInputResources))
 			if err != nil {
 				t.Fatalf("Err: %v", err)
 			}
 
-			err = KustomizePlugin.Config(loadertest.NewFakeLoader("/"), resourceFactory, []byte(testCase.pluginConfig))
+			helpers := resmap.NewPluginHelpers(loadertest.NewFakeLoader("/"), valtest_test.MakeHappyMapValidator(t), resourceFactory)
+			err = KustomizePlugin.Config(helpers, []byte(testCase.pluginConfig))
 			if err != nil {
 				t.Fatalf("Err: %v", err)
 			}

@@ -6,16 +6,15 @@ import (
 	"path/filepath"
 
 	"github.com/qlik-oss/kustomize-plugins/kustomize/utils"
-	"sigs.k8s.io/kustomize/v3/pkg/ifc"
-	"sigs.k8s.io/kustomize/v3/pkg/resmap"
-	"sigs.k8s.io/kustomize/v3/pkg/transformers"
-	"sigs.k8s.io/kustomize/v3/pkg/transformers/config"
-	"sigs.k8s.io/yaml"
+	"gopkg.in/yaml.v2"
+	"sigs.k8s.io/kustomize/api/resmap"
+	"sigs.k8s.io/kustomize/api/transform"
+	"sigs.k8s.io/kustomize/api/types"
 )
 
 type plugin struct {
 	RootDir    string
-	FieldSpecs []config.FieldSpec `json:"fieldSpecs,omitempty" yaml:"fieldSpecs,omitempty"`
+	FieldSpecs []types.FieldSpec `json:"fieldSpecs,omitempty" yaml:"fieldSpecs,omitempty"`
 }
 
 var KustomizePlugin plugin
@@ -26,9 +25,9 @@ func init() {
 	logger = utils.GetLogger("FullPath")
 }
 
-func (p *plugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []byte) (err error) {
-	p.RootDir = ldr.Root()
-	p.FieldSpecs = make([]config.FieldSpec, 0)
+func (p *plugin) Config(h *resmap.PluginHelpers, c []byte) error {
+	p.RootDir = h.Loader().Root()
+	p.FieldSpecs = make([]types.FieldSpec, 0)
 
 	return yaml.Unmarshal(c, p)
 }
@@ -41,7 +40,7 @@ func (p *plugin) Transform(m resmap.ResMap) error {
 				continue
 			}
 
-			err := transformers.MutateField(
+			err := transform.MutateField(
 				r.Map(),
 				fieldSpec.PathSlice(),
 				fieldSpec.CreateIfNotPresent,
