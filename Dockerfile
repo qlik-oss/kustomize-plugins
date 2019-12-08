@@ -1,4 +1,5 @@
 FROM golang:stretch as build
+FROM hairyhenderson/gomplate:v3.6.0-slim AS gomplate
 WORKDIR /work
 ENV XDG_CONFIG_HOME=/work/src/qlik-oss/kustomize-plugins
 ENV GO111MODULE=on
@@ -27,6 +28,12 @@ RUN echo "deb http://deb.debian.org/debian stretch-backports main" >> /etc/apt/s
     apt-get update && \
     apt-get install jq libgpgme11-dev libassuan-dev libbtrfs-dev libdevmapper-dev -y && \
     rm -rf /var/lib/apt/lists/*
+ENV JFROG_CLI_OFFER_CONFIG=false
+RUN apt-get update &&\
+    apt-get install curl -y &&\
+    rm -rf /var/lib/apt/lists/* &&\
+    curl -fL https://getcli.jfrog.io | sh &&\
+    mv jfrog /bin
 COPY --from=build /go/bin /usr/local/bin
 COPY --from=build /tmp/go/src/qlik-oss/kustomize-plugins/kustomize /root/.config/kustomize
-COPY --from=docker.bintray.io/jfrog/jfrog-cli-go:latest /usr/local/bin/jfrog /usr/local/bin/jfrog
+COPY --from=gomplate /gomplate /bin/gomplate
