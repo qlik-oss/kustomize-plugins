@@ -1,3 +1,4 @@
+FROM hairyhenderson/gomplate:v3.6.0-slim AS gomplate
 FROM docker:19.03.5 AS docker
 FROM golang:stretch as build
 WORKDIR /work
@@ -26,9 +27,12 @@ FROM debian:stretch
 # Note: These .so packages also required for skopeo runtime (as not statically linked)
 RUN echo "deb http://deb.debian.org/debian stretch-backports main" >> /etc/apt/sources.list && \
     apt-get update && \
-    apt-get install jq libgpgme11-dev libassuan-dev libbtrfs-dev libdevmapper-dev -y && \
+    apt-get install jq curl libgpgme11-dev libassuan-dev libbtrfs-dev libdevmapper-dev -y && \
     rm -rf /var/lib/apt/lists/*
+ENV JFROG_CLI_OFFER_CONFIG=false
+RUN curl -fL https://getcli.jfrog.io | sh &&\
+    mv jfrog /bin
 COPY --from=build /go/bin /usr/local/bin
 COPY --from=build /tmp/go/src/qlik-oss/kustomize-plugins/kustomize /root/.config/kustomize
-COPY --from=docker.bintray.io/jfrog/jfrog-cli-go:latest /usr/local/bin/jfrog /usr/local/bin/jfrog
+COPY --from=gomplate /gomplate /bin/gomplate
 COPY --from=docker /usr/local/bin/docker /bin/docker
