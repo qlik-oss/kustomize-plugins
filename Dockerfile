@@ -1,4 +1,5 @@
 FROM hairyhenderson/gomplate:v3.6.0-slim AS gomplate
+FROM docker:19.03.5 AS docker
 FROM golang:stretch as build
 WORKDIR /work
 ENV XDG_CONFIG_HOME=/work/src/qlik-oss/kustomize-plugins
@@ -34,3 +35,4 @@ RUN curl -fL https://getcli.jfrog.io | sh &&\
 COPY --from=build /go/bin /usr/local/bin
 COPY --from=build /tmp/go/src/qlik-oss/kustomize-plugins/kustomize /root/.config/kustomize
 COPY --from=gomplate /gomplate /bin/gomplate
+COPY --from=docker /usr/local/bin/docker /bin/docker
