@@ -1,3 +1,4 @@
+FROM docker:19.03.5 AS docker
 FROM golang:stretch as build
 WORKDIR /work
 ENV XDG_CONFIG_HOME=/work/src/qlik-oss/kustomize-plugins
@@ -30,3 +31,4 @@ RUN echo "deb http://deb.debian.org/debian stretch-backports main" >> /etc/apt/s
 COPY --from=build /go/bin /usr/local/bin
 COPY --from=build /tmp/go/src/qlik-oss/kustomize-plugins/kustomize /root/.config/kustomize
 COPY --from=docker.bintray.io/jfrog/jfrog-cli-go:latest /usr/local/bin/jfrog /usr/local/bin/jfrog
+COPY --from=docker /usr/local/bin/docker /bin/docker
