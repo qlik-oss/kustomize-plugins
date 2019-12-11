@@ -90,7 +90,7 @@ func (p *plugin) Transform(m resmap.ResMap) error {
 	}
 
 	var dataSource string
-	if ejsonKey != "" {
+	if p.DataSource["ejson"] != nil {
 		dataSource = fmt.Sprintf("%s", p.DataSource["ejson"].(map[string]interface{})["filePath"])
 	} else if vaultAddress != "" && vaultToken != "" {
 		dataSource = fmt.Sprintf("%s", p.DataSource["vault"].(map[string]interface{})["secretPath"])
