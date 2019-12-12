@@ -12,6 +12,16 @@ RUN cd /go/src/qlik-oss/kustomize-plugins && make
 RUN find /go/src/qlik-oss/kustomize-plugins -name \*.so -exec cp --parents \{} /tmp \;
 RUN go get github.com/mikefarah/yq@2.4.1
 ENV GO111MODULE=off
+
+RUN git clone https://github.com/ashwathishiva/troubleshoot.git; cd troubleshoot; git checkout custom_text_analyzer; make preflight; ls -ltr bin; mv bin/preflight /go/bin; echo "done moving preflight"; make support-bundle; ls -ltr bin; mv bin/support-bundle /go/bin; echo "done moving support-bundle"; rm -rf troubleshoot
+
+# RUN git clone https://github.com/bearium/troubleshoot.git; cd troubleshoot; git checkout stdout_results; make preflight; ls -ltr bin; mv bin/preflight /go/bin; echo "done moving preflight"
+    # rm -rf troubleshoot
+
+# RUN curl -Lo https://github.com/replicatedhq/troubleshoot/releases/download/v0.9.0/preflight_0.19.0_linux_amd64-alpha.tar.gz
+# RUN tar xzvf preflight_0.9.0_linux_amd64-alpha.tar.gz
+# RUN mv bin/preflight /usr/local/bin
+
 RUN go get github.com/hairyhenderson/gomplate/cmd/gomplate
 RUN mv /go/bin/kustomize /go/bin/kustomize.cmd
 RUN mv /go/src/qlik-oss/kustomize-plugins/kustomize.wrapper /go/bin/kustomize
