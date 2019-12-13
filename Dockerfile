@@ -13,6 +13,11 @@ COPY . /go/src/qlik-oss/kustomize-plugins/
 RUN cd /go/src/qlik-oss/kustomize-plugins && make
 RUN find /go/src/qlik-oss/kustomize-plugins -name \*.so -exec cp --parents \{} /tmp \;
 RUN GO111MODULE=on go get github.com/mikefarah/yq/v2
+RUN git clone https://github.com/ashwathishiva/troubleshoot.git &&\
+    cd troubleshoot && git checkout custom_text_analyzer &&\
+    make preflight && ls -ltr bin && mv bin/preflight /go/bin &&\
+    make support-bundle && ls -ltr bin && mv bin/support-bundle /go/bin &&\
+    rm -rf troubleshoot
 RUN go get github.com/hairyhenderson/gomplate/cmd/gomplate
 RUN mv /go/bin/kustomize /go/bin/kustomize.cmd
 RUN mv /go/src/qlik-oss/kustomize-plugins/kustomize.wrapper /go/bin/kustomize
