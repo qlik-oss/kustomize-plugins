@@ -23,10 +23,18 @@ RUN mv /go/bin/kustomize /go/bin/kustomize.cmd
 RUN mv /go/src/qlik-oss/kustomize-plugins/kustomize.wrapper /go/bin/kustomize
 
 FROM debian:stretch
-RUN apt-get update && apt-get install jq curl -y && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install jq curl git -y && rm -rf /var/lib/apt/lists/*
 ENV JFROG_CLI_OFFER_CONFIG=false
 RUN curl -fL https://getcli.jfrog.io | sh &&\
     mv jfrog /bin
 COPY --from=build /go/bin /usr/local/bin
 COPY --from=build /tmp/go/src/qlik-oss/kustomize-plugins/kustomize /root/.config/kustomize
 COPY --from=docker /usr/local/bin/docker /bin/docker
+
+# install porter 
+ENV PORTER_HOME=/root/.porter
+RUN curl https://cdn.deislabs.io/porter/latest/install-linux.sh | bash
+RUN echo "export PATH=$PATH:$PORTER_HOME" >> /root/.bashrc
+# install porter-mixins
+RUN $PORTER_HOME/porter mixin install kustomize -v 0.2-beta-3-0e19ca4 --url https://github.com/donmstewart/porter-kustomize/releases/download
+RUN $PORTER_HOME/porter mixin install qliksense -v v0.9.0 --url https://github.com/qlik-oss/porter-qliksense/releases/download
