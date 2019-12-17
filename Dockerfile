@@ -24,8 +24,7 @@ RUN mv /go/src/qlik-oss/kustomize-plugins/kustomize.wrapper /go/bin/kustomize
 
 FROM debian:stretch
 RUN apt-get update && apt-get install jq curl git -y && rm -rf /var/lib/apt/lists/*
-#Need to copy because /usr/local/bin/ is copied into invocation image
-RUN mv /usr/bin/jq /usr/local/bin
+
 ENV JFROG_CLI_OFFER_CONFIG=false
 RUN curl -fL https://getcli.jfrog.io | sh &&\
     mv jfrog /bin
