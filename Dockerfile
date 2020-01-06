@@ -16,8 +16,7 @@ RUN GO111MODULE=on go get github.com/mikefarah/yq/v2
 
 # install troubleshoot for preflight checks
 RUN git clone https://github.com/replicatedhq/troubleshoot.git &&\
-    cd troubleshoot &&\
-    make preflight && ls -ltr bin && mv bin/preflight /go/bin &&\
+    cd troubleshoot && make preflight && ls -ltr bin && mv bin/preflight /go/bin &&\
     make support-bundle && ls -ltr bin && mv bin/support-bundle /go/bin &&\
     rm -rf troubleshoot
 RUN go get github.com/hairyhenderson/gomplate/cmd/gomplate
