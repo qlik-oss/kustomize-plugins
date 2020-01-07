@@ -24,7 +24,7 @@ RUN mkdir hub && \
     && ./hub/install \
     && rm -r hub
 RUN go get github.com/hairyhenderson/gomplate/cmd/gomplate
-RUN go get -u github.com/Masterminds/vert
+RUN GO111MODULE=on go get -u github.com/Masterminds/vert
 RUN mv /go/bin/kustomize /go/bin/kustomize.cmd
 RUN mv /go/src/qlik-oss/kustomize-plugins/kustomize.wrapper /go/bin/kustomize
 
