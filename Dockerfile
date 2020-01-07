@@ -23,7 +23,7 @@ RUN mv /go/bin/kustomize /go/bin/kustomize.cmd
 RUN mv /go/src/qlik-oss/kustomize-plugins/kustomize.wrapper /go/bin/kustomize
 
 FROM debian:stretch
-RUN apt-get update && apt-get install jq curl git -y && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install jq curl git hub -y && rm -rf /var/lib/apt/lists/*
 
 ENV JFROG_CLI_OFFER_CONFIG=false
 RUN curl -fL https://getcli.jfrog.io | sh &&\
