@@ -37,6 +37,7 @@ COPY --from=build /go/bin /usr/local/bin
 COPY --from=build /usr/local/bin/hub /bin/hub
 COPY --from=build /tmp/go/src/qlik-oss/kustomize-plugins/kustomize /root/.config/kustomize
 COPY --from=docker /usr/local/bin/docker /bin/docker
+COPY --from=vert /go/bin/vert /usr/local/bin/vert
 
 # install porter 
 ENV PORTER_HOME=/root/.porter
