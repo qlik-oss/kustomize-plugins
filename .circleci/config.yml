@@ -1,9 +1,17 @@
-version: 2.1
-orbs:
-  docker-publish: circleci/docker-publish@0.1.7
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/golang:stretch
+    working_directory: /go/src/github.com/qlik-oss/kustomize-plugins
+    steps:
+      - checkout
+      - run:
+          name: "Verify build"
+          command: |
+            make
 workflows:
-  build_and_publish_docker_image:
+  version: 2
+  commit:
     jobs:
-      - docker-publish/publish:
-          image: qlik/qliksense-cloud-tools
-          tag: latest
+      - build
