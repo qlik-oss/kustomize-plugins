@@ -19,7 +19,13 @@ RUN git clone https://github.com/replicatedhq/troubleshoot.git &&\
     cd troubleshoot && make preflight && ls -ltr bin && mv bin/preflight /go/bin &&\
     make support-bundle && ls -ltr bin && mv bin/support-bundle /go/bin &&\
     rm -rf troubleshoot
+RUN mkdir hub && \
+    wget https://github.com/github/hub/releases/download/v2.12.2/hub-linux-amd64-2.12.2.tgz -O- | \
+    tar xz --strip-components 1 --directory hub \
+    && ./hub/install \
+    && rm -r hub
 RUN go get github.com/hairyhenderson/gomplate/cmd/gomplate
+RUN GO111MODULE=on go get -u github.com/Masterminds/vert
 RUN mv /go/bin/kustomize /go/bin/kustomize.cmd
 RUN mv /go/src/qlik-oss/kustomize-plugins/kustomize.wrapper /go/bin/kustomize
 
@@ -30,6 +36,7 @@ ENV JFROG_CLI_OFFER_CONFIG=false
 RUN curl -fL https://getcli.jfrog.io | sh &&\
     mv jfrog /bin
 COPY --from=build /go/bin /usr/local/bin
+COPY --from=build /usr/local/bin/hub /bin/hub
 COPY --from=build /tmp/go/src/qlik-oss/kustomize-plugins/kustomize /root/.config/kustomize
 COPY --from=docker /usr/local/bin/docker /bin/docker
 
